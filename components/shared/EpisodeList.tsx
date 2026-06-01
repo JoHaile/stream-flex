@@ -61,7 +61,6 @@ export default function EpisodeList({
   const episodes =
     selectedSeason === initialSeason ? initialEpisodes : loadedEpisodes;
 
-  // Filter out season 0 (specials) for cleaner UX
   const filteredSeasons = seasons.filter((s) => s.season_number > 0);
 
   useEffect(() => {
@@ -105,17 +104,18 @@ export default function EpisodeList({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header with season selector */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold">Episodes</h3>
-        <Select
+        <h3 className="text-lg font-bold text-white">Episodes</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-zinc-400">Season</span>
+          <Select
           value={String(selectedSeason)}
           onValueChange={handleSeasonChange}
         >
-          <SelectTrigger className="min-w-[130px] border-border bg-muted text-foreground hover:bg-accent">
+          <SelectTrigger className="min-w-[130px] border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700 focus:ring-red-500">
             <SelectValue placeholder="Select season" />
           </SelectTrigger>
-          <SelectContent className="border border-border bg-card text-foreground">
+          <SelectContent className="border border-zinc-700 bg-zinc-900 text-zinc-200">
             {filteredSeasons.map((season) => (
               <SelectItem
                 key={season.id}
@@ -126,22 +126,21 @@ export default function EpisodeList({
             ))}
           </SelectContent>
         </Select>
+        </div>
       </div>
 
-      {/* Episode list */}
       <div className="flex flex-col gap-2 overflow-y-auto hide-scrollbar flex-1 max-h-[520px] pr-1">
         {loading ? (
-          // Skeleton loaders
           Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="flex gap-3 p-3 rounded-xl animate-pulse"
+              className="flex gap-3 p-3 rounded-lg animate-pulse bg-zinc-900"
             >
-              <div className="w-28 h-16 rounded-lg bg-muted flex-shrink-0" />
+              <div className="w-28 h-16 rounded bg-zinc-800 flex-shrink-0" />
               <div className="flex-1 space-y-2 py-1">
-                <div className="h-3 bg-muted rounded w-16" />
-                <div className="h-4 bg-muted rounded w-28" />
-                <div className="h-3 bg-muted rounded w-10" />
+                <div className="h-3 bg-zinc-800 rounded w-16" />
+                <div className="h-4 bg-zinc-800 rounded w-28" />
+                <div className="h-3 bg-zinc-800 rounded w-10" />
               </div>
             </div>
           ))
@@ -152,14 +151,13 @@ export default function EpisodeList({
               onClick={() =>
                 onEpisodeSelect?.(ep.season_number, ep.episode_number, ep)
               }
-              className={`flex w-full gap-3 rounded-2xl border p-3 text-left transition ${
+              className={`flex w-full gap-3 rounded-lg border p-3 text-left transition ${
                 isActive(ep)
-                  ? "border-sky-300/40 bg-sky-300/10"
-                  : "border-border bg-muted hover:border-border hover:bg-accent/50"
+                  ? "border-red-500/40 bg-red-500/10"
+                  : "border-zinc-800 bg-zinc-900 hover:border-zinc-700 hover:bg-zinc-800/50"
               }`}
             >
-              {/* Episode thumbnail */}
-              <div className="relative h-16 w-28 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+              <div className="relative h-16 w-28 flex-shrink-0 overflow-hidden rounded bg-zinc-800">
                 {ep.still_path ? (
                   <Image
                     src={`https://image.tmdb.org/t/p/w300${ep.still_path}`}
@@ -169,15 +167,15 @@ export default function EpisodeList({
                     className="object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-muted">
-                    <PlayIcon className="w-4 h-4 text-muted-foreground" />
+                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+                    <PlayIcon className="w-4 h-4 text-zinc-500" />
                   </div>
                 )}
                 {isActive(ep) && (
-                  <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
-                    <div className="w-7 h-7 rounded-full bg-foreground/90 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
                       <PlayIcon
-                        className="w-3.5 h-3.5 text-background ml-0.5"
+                        className="w-3.5 h-3.5 text-black ml-0.5"
                         fill="currentColor"
                       />
                     </div>
@@ -185,18 +183,17 @@ export default function EpisodeList({
                 )}
               </div>
 
-              {/* Episode info */}
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="text-xs font-medium text-zinc-500">
                   Episode {ep.episode_number}
                 </span>
-                <h4 className="mt-0.5 line-clamp-1 text-sm font-semibold leading-tight text-foreground">
+                <h4 className="mt-0.5 line-clamp-1 text-sm font-semibold leading-tight text-white">
                   {ep.name}
                 </h4>
                 {ep.runtime && (
                   <div className="flex items-center gap-1 mt-1">
-                    <ClockIcon className="h-3 w-3 text-muted-foreground/50" />
-                    <span className="text-xs text-muted-foreground">
+                    <ClockIcon className="h-3 w-3 text-zinc-600" />
+                    <span className="text-xs text-zinc-500">
                       {ep.runtime}m
                     </span>
                   </div>

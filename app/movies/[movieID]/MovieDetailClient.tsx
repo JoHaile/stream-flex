@@ -2,16 +2,22 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
-import EpisodeList from "@/components/shared/EpisodeList";
-import type { TVEpisode, TVSeriesDetails } from "@/utils/tmdb";
-import { ChevronLeft, ChevronRight, StarIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  StarIcon,
+} from "lucide-react";
+import type {
+  MovieDetails,
+  TMDBMovieCard,
+} from "@/utils/getMovies";
 
-interface TVSeriesDetailClientProps {
-  initialEpisodes: TVEpisode[];
-  initialSeason: number;
-  seriesData: TVSeriesDetails;
-  seriesId: string;
+interface MovieDetailClientProps {
+  movie: MovieDetails;
+  movieId: string;
+  certification: string | null;
+  relatedTitles: TMDBMovieCard[];
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -25,13 +31,6 @@ function tmdbImage(path: string | null | undefined, size = "original") {
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "TBA";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "TBA";
-  return dateFormatter.format(date);
-}
-
 function formatRuntime(runtime: number | null | undefined) {
   if (!runtime || runtime <= 0) return "Runtime unavailable";
   const hours = Math.floor(runtime / 60);
@@ -41,79 +40,45 @@ function formatRuntime(runtime: number | null | undefined) {
   return `${hours}h ${minutes}m`;
 }
 
-function getContentRating(series: TVSeriesDetails, region = "US") {
-  return (
-    series.content_ratings?.results?.find(
-      (entry) => entry.iso_3166_1 === region,
-    )?.rating ?? null
+function formatDate(value: string | null | undefined) {
+  if (!value) return "TBA";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "TBA";
+  return dateFormatter.format(date);
+}
+
+function getCrew(movie: MovieDetails) {
+  const crew = movie.credits?.crew ?? [];
+  const directors = Array.from(
+    new Set(
+      crew
+        .filter((member) => member.job === "Director")
+        .map((member) => member.name),
+    ),
   );
-}
-
-function pickTrailer(series: TVSeriesDetails) {
-  const videos = series.videos?.results ?? [];
-  return (
-    videos.find(
-      (video) => video.site === "YouTube" && video.type === "Trailer" && video.official,
-    ) ??
-    videos.find((video) => video.site === "YouTube" && video.type === "Trailer") ??
-    videos.find((video) => video.site === "YouTube")
+  const writers = Array.from(
+    new Set(
+      crew
+        .filter((member) =>
+          ["Screenplay", "Writer", "Story"].includes(member.job),
+        )
+        .map((member) => member.name),
+    ),
   );
+  return { directors, writers };
 }
 
-function pickLogo(series: TVSeriesDetails) {
-  const logos = series.images?.logos ?? [];
-  return (
-    logos.find((logo) => logo.iso_639_1 === "en") ??
-    logos.find((logo) => logo.iso_639_1 === null) ??
-    logos[0]
-  );
+function getEmbedUrl(id: string) {
+  return `https://vsembed.ru/embed/movie/${encodeURIComponent(id)}/?autoplay=1&muted=1`;
 }
 
-function getRelatedTitles(series: TVSeriesDetails) {
-  const items = [
-    ...(series.recommendations?.results ?? []),
-    ...(series.similar?.results ?? []),
-  ];
-  const seen = new Set<number>();
-  return items.filter((item) => {
-    if (!item.poster_path || seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
-}
-
-function getEpisodeEmbedUrl(seriesId: string, season: number, episode: number) {
-  return `https://vsembed.ru/embed/tv/${encodeURIComponent(seriesId)}/${season}/${episode}?autoplay=1&muted=1`;
-}
-
-function getShowYearLabel(series: TVSeriesDetails) {
-  const firstYear = series.first_air_date?.slice(0, 4);
-  const lastYear = series.last_air_date?.slice(0, 4);
-  if (!firstYear) return "Unknown";
-  if (series.status === "Ended" && lastYear && firstYear !== lastYear) {
-    return `${firstYear} - ${lastYear}`;
-  }
-  if (series.status !== "Ended" && lastYear) {
-    return `${firstYear} - ${lastYear === firstYear ? "Present" : lastYear}`;
-  }
-  return firstYear;
-}
-
-export default function TVSeriesDetailClient({
-  initialEpisodes,
-  initialSeason,
-  seriesData,
-  seriesId,
-}: TVSeriesDetailClientProps) {
-  const [currentEpisode, setCurrentEpisode] = useState({
-    episode: initialEpisodes[0]?.episode_number ?? 1,
-    season: initialSeason,
-  });
-  const [currentEpisodeData, setCurrentEpisodeData] = useState<TVEpisode | null>(
-    initialEpisodes[0] ?? null,
-  );
+export default function MovieDetailClient({
+  movie,
+  movieId,
+  certification,
+  relatedTitles,
+}: MovieDetailClientProps) {
   const [showPlayer, setShowPlayer] = useState(false);
-
   const relatedRowRef = useRef<HTMLDivElement>(null);
 
   const scrollRelated = (direction: "left" | "right") => {
@@ -125,30 +90,27 @@ export default function TVSeriesDetailClient({
     });
   };
 
-  const handleEpisodeSelect = useCallback(
-    (seasonNum: number, episodeNum: number, episode?: TVEpisode) => {
-      setCurrentEpisode({ season: seasonNum, episode: episodeNum });
-      if (episode) setCurrentEpisodeData(episode);
-      setShowPlayer(true);
-    },
-    [],
-  );
-
-  const heroBackdrop = tmdbImage(seriesData.backdrop_path, "w1280");
-  const logo = pickLogo(seriesData);
-  const trailer = pickTrailer(seriesData);
-  const relatedTitles = getRelatedTitles(seriesData).slice(0, 12);
-  const cast = [...(seriesData.credits?.cast ?? [])]
-    .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
-    .slice(0, 10);
-  const creators = seriesData.created_by.slice(0, 3);
-  const showYears = getShowYearLabel(seriesData);
-  const contentRating = getContentRating(seriesData);
-  const runtime =
-    currentEpisodeData?.runtime ?? seriesData.episode_run_time?.[0] ?? null;
-  const matchScore = seriesData.vote_average
-    ? Math.round(seriesData.vote_average * 10)
+  const heroBackdrop = tmdbImage(movie.backdrop_path, "w1280");
+  const logo = movie.images?.logos?.find(
+    (l) => l.iso_639_1 === "en",
+  ) ?? movie.images?.logos?.[0];
+  const trailer = (() => {
+    const videos = movie.videos?.results ?? [];
+    return (
+      videos.find(
+        (v) => v.site === "YouTube" && v.type === "Trailer" && v.official,
+      ) ??
+      videos.find((v) => v.site === "YouTube" && v.type === "Trailer") ??
+      videos.find((v) => v.site === "YouTube")
+    );
+  })();
+  const crew = getCrew(movie);
+  const matchScore = movie.vote_average
+    ? Math.round(movie.vote_average * 10)
     : null;
+  const cast = [...(movie.credits?.cast ?? [])]
+    .sort((left, right) => left.order - right.order)
+    .slice(0, 10);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -156,7 +118,7 @@ export default function TVSeriesDetailClient({
         {heroBackdrop ? (
           <Image
             src={heroBackdrop}
-            alt={seriesData.name}
+            alt={movie.title}
             fill
             priority
             className="object-cover object-top"
@@ -173,7 +135,7 @@ export default function TVSeriesDetailClient({
               <div className="relative mb-4 h-20 w-full max-w-[400px]">
                 <Image
                   src={tmdbImage(logo.file_path, "w500") ?? ""}
-                  alt={`${seriesData.name} logo`}
+                  alt={`${movie.title} logo`}
                   fill
                   className="object-contain object-left"
                   sizes="400px"
@@ -181,9 +143,15 @@ export default function TVSeriesDetailClient({
               </div>
             ) : (
               <h1 className="mb-3 text-4xl font-black tracking-tight md:text-5xl lg:text-7xl">
-                {seriesData.name}
+                {movie.title}
               </h1>
             )}
+
+            {movie.tagline ? (
+              <p className="mb-2 max-w-xl text-sm italic text-white/50">
+                {movie.tagline}
+              </p>
+            ) : null}
 
             <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
               {matchScore !== null ? (
@@ -191,27 +159,23 @@ export default function TVSeriesDetailClient({
                   {matchScore}% Match
                 </span>
               ) : null}
-              {showYears ? (
-                <span className="text-white/70">{showYears}</span>
+              {movie.release_date?.slice(0, 4) ? (
+                <span className="text-white/70">
+                  {movie.release_date.slice(0, 4)}
+                </span>
               ) : null}
-              {contentRating ? (
+              {certification ? (
                 <span className="rounded border border-white/30 px-1.5 py-0.5 text-xs font-medium text-white/80">
-                  {contentRating}
+                  {certification}
                 </span>
               ) : null}
               <span className="text-white/70">
-                {seriesData.number_of_seasons}{" "}
-                {seriesData.number_of_seasons === 1 ? "Season" : "Seasons"}
+                {formatRuntime(movie.runtime)}
               </span>
-              {seriesData.episode_run_time?.[0] ? (
-                <span className="text-white/70">
-                  {formatRuntime(seriesData.episode_run_time[0])}
-                </span>
-              ) : null}
             </div>
 
             <div className="mb-4 flex flex-wrap gap-2">
-              {seriesData.genres.slice(0, 4).map((genre) => (
+              {movie.genres.slice(0, 4).map((genre) => (
                 <span
                   key={genre.id}
                   className="rounded bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white/90"
@@ -222,7 +186,7 @@ export default function TVSeriesDetailClient({
             </div>
 
             <p className="mb-6 max-w-xl text-sm leading-relaxed text-white/65 line-clamp-3 md:text-base">
-              {seriesData.overview || "Story details are not available for this series yet."}
+              {movie.overview || "Story details are not available for this title yet."}
             </p>
 
             <div className="flex items-center gap-3">
@@ -233,7 +197,7 @@ export default function TVSeriesDetailClient({
                 <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
-                {currentEpisodeData?.name ? "Resume" : "Play"}
+                Play
               </button>
 
               {trailer ? (
@@ -266,12 +230,8 @@ export default function TVSeriesDetailClient({
           <section className="-mt-20 relative z-10 mb-10 overflow-hidden rounded-lg bg-black shadow-2xl">
             <div className="relative aspect-video w-full">
               <iframe
-                src={getEpisodeEmbedUrl(
-                  seriesId,
-                  currentEpisode.season,
-                  currentEpisode.episode,
-                )}
-                title={seriesData.name || "TV series player"}
+                src={getEmbedUrl(movieId)}
+                title={movie.title || "Movie player"}
                 className="absolute inset-0 h-full w-full border-none"
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                 allowFullScreen
@@ -281,15 +241,13 @@ export default function TVSeriesDetailClient({
               <div>
                 <p className="text-xs font-medium text-zinc-400">Now Playing</p>
                 <p className="text-sm font-semibold text-white">
-                  {currentEpisodeData?.name
-                    ? `S${currentEpisode.season}:E${currentEpisode.episode} · ${currentEpisodeData.name}`
-                    : `${seriesData.name}`}
+                  {movie.title}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-zinc-400">
-                {runtime ? <span>{formatRuntime(runtime)}</span> : null}
-                {currentEpisodeData?.air_date ? (
-                  <span>{formatDate(currentEpisodeData.air_date)}</span>
+                <span>{formatRuntime(movie.runtime)}</span>
+                {movie.release_date ? (
+                  <span>{formatDate(movie.release_date)}</span>
                 ) : null}
               </div>
             </div>
@@ -336,41 +294,31 @@ export default function TVSeriesDetailClient({
           </section>
         ) : null}
 
-        <section className="mb-10">
-          <h2 className="mb-4 text-xl font-bold text-white">Episodes</h2>
-          <EpisodeList
-            currentEpisode={currentEpisode}
-            initialEpisodes={initialEpisodes}
-            initialSeason={initialSeason}
-            onEpisodeSelect={handleEpisodeSelect}
-            seasons={seriesData.seasons || []}
-            seriesId={seriesId}
-          />
-        </section>
-
-        {seriesData.overview ? (
+        {movie.overview ? (
           <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-3 text-xl font-bold text-white">About {seriesData.name}</h2>
+            <h2 className="mb-3 text-xl font-bold text-white">
+              About {movie.title}
+            </h2>
             <p className="max-w-3xl text-sm leading-relaxed text-zinc-400">
-              {seriesData.overview}
+              {movie.overview}
             </p>
             <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-zinc-400">
-              {creators.length ? (
+              {crew.directors.length ? (
                 <div>
-                  <span className="font-semibold text-zinc-300">Created by: </span>
-                  {creators.map((c) => c.name).join(", ")}
+                  <span className="font-semibold text-zinc-300">Director: </span>
+                  {crew.directors.join(", ")}
                 </div>
               ) : null}
-              {seriesData.genres.length ? (
+              {crew.writers.length ? (
+                <div>
+                  <span className="font-semibold text-zinc-300">Writer: </span>
+                  {crew.writers.join(", ")}
+                </div>
+              ) : null}
+              {movie.genres.length ? (
                 <div>
                   <span className="font-semibold text-zinc-300">Genres: </span>
-                  {seriesData.genres.map((g) => g.name).join(", ")}
-                </div>
-              ) : null}
-              {seriesData.networks.length ? (
-                <div>
-                  <span className="font-semibold text-zinc-300">Network: </span>
-                  {seriesData.networks.map((n) => n.name).join(", ")}
+                  {movie.genres.map((g) => g.name).join(", ")}
                 </div>
               ) : null}
             </div>
@@ -405,21 +353,21 @@ export default function TVSeriesDetailClient({
                 return (
                   <Link
                     key={item.id}
-                    href={`/tv-series/${item.id}`}
+                    href={`/movies/${item.id}`}
                     className="group flex-shrink-0 w-[150px]"
                   >
                     <div className="relative aspect-[2/3] w-full overflow-hidden rounded-sm bg-zinc-800">
                       {poster ? (
                         <Image
                           src={poster}
-                          alt={item.name}
+                          alt={item.title}
                           fill
                           className="object-cover transition duration-300 group-hover:scale-110 group-hover:opacity-60"
                           sizes="150px"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center px-3 text-center text-xs text-zinc-500">
-                          {item.name}
+                          {item.title}
                         </div>
                       )}
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
@@ -441,10 +389,10 @@ export default function TVSeriesDetailClient({
                       ) : null}
                     </div>
                     <p className="mt-2 text-sm font-semibold text-white line-clamp-1 group-hover:text-red-400 transition-colors">
-                      {item.name}
+                      {item.title}
                     </p>
                     <p className="text-xs text-zinc-500">
-                      {item.first_air_date?.slice(0, 4) || "TBA"}
+                      {item.release_date?.slice(0, 4) || "TBA"}
                     </p>
                   </Link>
                 );
@@ -456,5 +404,3 @@ export default function TVSeriesDetailClient({
     </div>
   );
 }
-
-
