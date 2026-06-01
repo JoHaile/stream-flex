@@ -7,10 +7,18 @@ import {
   ChevronLeft,
   ChevronRight,
   StarIcon,
+  ExternalLink,
+  TrendingUp,
+  DollarSign,
+  Landmark,
+  Calendar,
 } from "lucide-react";
 import type {
   MovieDetails,
   TMDBMovieCard,
+  TMDBReview,
+  TMDBWatchProviderResult,
+  TMDBKeyword,
 } from "@/utils/getMovies";
 
 interface MovieDetailClientProps {
@@ -32,7 +40,7 @@ function tmdbImage(path: string | null | undefined, size = "original") {
 }
 
 function formatRuntime(runtime: number | null | undefined) {
-  if (!runtime || runtime <= 0) return "Runtime unavailable";
+  if (!runtime || runtime <= 0) return "N/A";
   const hours = Math.floor(runtime / 60);
   const minutes = runtime % 60;
   if (!hours) return `${minutes}m`;
@@ -45,6 +53,23 @@ function formatDate(value: string | null | undefined) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "TBA";
   return dateFormatter.format(date);
+}
+
+function formatCurrency(value: number | null | undefined) {
+  if (!value || value <= 0) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatNumber(value: number | null | undefined) {
+  if (!value) return "N/A";
+  if (value >= 10000) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  }
+  return value.toFixed(1);
 }
 
 function getCrew(movie: MovieDetails) {
@@ -72,6 +97,71 @@ function getEmbedUrl(id: string) {
   return `https://vsembed.ru/embed/movie/${encodeURIComponent(id)}/?autoplay=1&muted=1`;
 }
 
+function getUsProviders(
+  data: Record<string, TMDBWatchProviderResult> | undefined,
+) {
+  return data?.US ?? null;
+}
+
+function ReviewCard({ review }: { review: TMDBReview }) {
+  const avatar = review.author_details?.avatar_path;
+  const avatarUrl = avatar
+    ? avatar.startsWith("/")
+      ? `https://image.tmdb.org/t/p/w45${avatar}`
+      : avatar
+    : null;
+  const rating = review.author_details?.rating ?? null;
+  const cleanContent = review.content.replace(/<\/?[^>]+(>|$)/g, "");
+
+  return (
+    <div className="flex-shrink-0 w-[340px] rounded-lg border border-zinc-800 bg-zinc-900/70 p-4">
+      <div className="mb-3 flex items-center gap-3">
+        <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-zinc-700">
+          {avatarUrl ? (
+            <Image
+              src={avatarUrl}
+              alt={review.author}
+              width={36}
+              height={36}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs font-bold text-zinc-400">
+              {review.author[0]?.toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-white">
+            {review.author_details?.name || review.author}
+          </p>
+          <p className="text-xs text-zinc-500">
+            {formatDate(review.created_at)}
+          </p>
+        </div>
+        {rating !== null ? (
+          <div className="flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-xs font-semibold">
+            <StarIcon className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+            {rating.toFixed(1)}
+          </div>
+        ) : null}
+      </div>
+      <p className="line-clamp-4 text-xs leading-relaxed text-zinc-400">
+        {cleanContent}
+      </p>
+      <a
+        href={review.url}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition"
+      >
+        Read full review
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    </div>
+  );
+}
+
 export default function MovieDetailClient({
   movie,
   movieId,
@@ -81,11 +171,13 @@ export default function MovieDetailClient({
   const [showPlayer, setShowPlayer] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const relatedRowRef = useRef<HTMLDivElement>(null);
+  const stillsRowRef = useRef<HTMLDivElement>(null);
+  const reviewsRowRef = useRef<HTMLDivElement>(null);
 
-  const scrollRelated = (direction: "left" | "right") => {
-    if (!relatedRowRef.current) return;
+  const scrollRow = (ref: React.RefObject<HTMLDivElement | null>, direction: "left" | "right") => {
+    if (!ref.current) return;
     const amount = 600;
-    relatedRowRef.current.scrollBy({
+    ref.current.scrollBy({
       left: direction === "left" ? -amount : amount,
       behavior: "smooth",
     });
@@ -112,6 +204,20 @@ export default function MovieDetailClient({
   const cast = [...(movie.credits?.cast ?? [])]
     .sort((left, right) => left.order - right.order)
     .slice(0, 10);
+
+  const backdrops = (movie.images?.backdrops ?? []).slice(0, 12);
+  const posters = (movie.images?.posters ?? []).slice(0, 8);
+  const reviews = (movie.reviews?.results ?? []).slice(0, 10);
+  const usProviders = getUsProviders(movie["watch/providers"]?.results);
+  const budgetFormatted = formatCurrency(movie.budget);
+  const revenueFormatted = formatCurrency(movie.revenue);
+  const keywords = (movie.keywords?.keywords ?? movie.keywords?.results ?? []) as TMDBKeyword[];
+
+  const hasGallery = backdrops.length > 0 || posters.length > 0;
+  const hasReviews = reviews.length > 0;
+  const hasProviders = usProviders && (usProviders.flatrate?.length || usProviders.rent?.length || usProviders.buy?.length);
+  const hasKeywords = keywords.length > 0;
+  const hasProduction = movie.production_companies.length > 0 || movie.production_countries.length > 0 || movie.spoken_languages.length > 0;
 
   return (
     <div className="min-h-screen bg-black text-white pt-16">
@@ -306,12 +412,48 @@ export default function MovieDetailClient({
 
         {movie.overview ? (
           <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-3 text-xl font-bold text-white">
+            <h2 className="mb-4 text-xl font-bold text-white">
               About {movie.title}
             </h2>
             <p className="max-w-3xl text-sm leading-relaxed text-zinc-400">
               {movie.overview}
             </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
+                <TrendingUp className="mb-1 h-4 w-4 text-red-400" />
+                <p className="text-[11px] font-medium text-zinc-500">Popularity</p>
+                <p className="text-sm font-semibold text-white">{formatNumber(movie.popularity)}</p>
+              </div>
+              {budgetFormatted ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
+                  <DollarSign className="mb-1 h-4 w-4 text-green-400" />
+                  <p className="text-[11px] font-medium text-zinc-500">Budget</p>
+                  <p className="text-sm font-semibold text-white">{budgetFormatted}</p>
+                </div>
+              ) : null}
+              {revenueFormatted ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
+                  <Landmark className="mb-1 h-4 w-4 text-yellow-400" />
+                  <p className="text-[11px] font-medium text-zinc-500">Revenue</p>
+                  <p className="text-sm font-semibold text-white">{revenueFormatted}</p>
+                </div>
+              ) : null}
+              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
+                <Calendar className="mb-1 h-4 w-4 text-blue-400" />
+                <p className="text-[11px] font-medium text-zinc-500">Release</p>
+                <p className="text-sm font-semibold text-white">{formatDate(movie.release_date)}</p>
+              </div>
+              {movie.genres.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3 col-span-2 sm:col-span-1 lg:col-span-2">
+                  <p className="text-[11px] font-medium text-zinc-500 mb-1">Genres</p>
+                  <p className="text-xs leading-relaxed text-white/80">
+                    {movie.genres.map((g) => g.name).join(", ")}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
             <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-zinc-400">
               {crew.directors.length ? (
                 <div>
@@ -325,29 +467,319 @@ export default function MovieDetailClient({
                   {crew.writers.join(", ")}
                 </div>
               ) : null}
-              {movie.genres.length ? (
+              {movie.imdb_id ? (
                 <div>
-                  <span className="font-semibold text-zinc-300">Genres: </span>
-                  {movie.genres.map((g) => g.name).join(", ")}
+                  <a
+                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded bg-yellow-500/15 px-3 py-1 text-xs font-semibold text-yellow-400 hover:bg-yellow-500/25 transition ring-1 ring-yellow-500/30"
+                  >
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M16.5 7.5v9H18v-9h-1.5zM12 7.5v9h1.5v-9H12zm-3 9V9.75L6 12.75V9H4.5v9H6l3-3.75V16.5H9v-6.75L12 12.75V9H9v7.5zM3 6v12h18V6H3z" />
+                    </svg>
+                    IMDb
+                  </a>
                 </div>
               ) : null}
             </div>
           </section>
         ) : null}
 
+        {hasGallery ? (
+          <section className="mb-10 border-t border-zinc-800 pt-8">
+            <h2 className="mb-4 text-xl font-bold text-white">Gallery</h2>
+            {backdrops.length ? (
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-medium text-zinc-500 uppercase tracking-wider">Stills</p>
+                <div className="relative">
+                  <div
+                    ref={stillsRowRef}
+                    className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar"
+                  >
+                    {backdrops.map((img, i) => {
+                      const url = tmdbImage(img.file_path, "w780");
+                      if (!url) return null;
+                      return (
+                        <div
+                          key={i}
+                          className="relative aspect-video h-28 flex-shrink-0 overflow-hidden rounded-md bg-zinc-800"
+                        >
+                          <Image
+                            src={url}
+                            alt={`${movie.title} still`}
+                            fill
+                            className="object-cover"
+                            sizes="180px"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {backdrops.length > 3 ? (
+                    <>
+                      <button
+                        onClick={() => scrollRow(stillsRowRef, "left")}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-zinc-300 hover:bg-black/80 hover:text-white transition"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => scrollRow(stillsRowRef, "right")}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-zinc-300 hover:bg-black/80 hover:text-white transition"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {posters.length ? (
+              <div className="mt-6">
+                <p className="mb-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Posters &amp; Artwork</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  {posters.slice(0, 8).map((img, i) => {
+                    const url = tmdbImage(img.file_path, i === 0 ? "w780" : "w342");
+                    if (!url) return null;
+                    const isFeatured = i === 0;
+                    const isBanner = i === 6 || i === 7;
+                    return (
+                      <div
+                        key={i}
+                        className={`relative overflow-hidden rounded-md bg-zinc-800 group ${
+                          isFeatured
+                            ? "col-span-2 row-span-2 md:col-span-2 md:row-span-2"
+                            : isBanner && posters.length > 6
+                              ? "col-span-2 sm:col-span-1 md:col-span-1"
+                              : ""
+                        }`}
+                      >
+                        <div className={isFeatured ? "aspect-[4/5] md:aspect-auto md:absolute md:inset-0" : "aspect-[2/3]"}>
+                          <Image
+                            src={url}
+                            alt={`${movie.title} poster`}
+                            fill
+                            className="object-cover transition duration-300 group-hover:scale-105"
+                            sizes={
+                              isFeatured
+                                ? "(max-width: 768px) 100vw, 50vw"
+                                : "(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {hasReviews ? (
+          <section className="mb-10 border-t border-zinc-800 pt-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">
+                Reviews <span className="text-sm font-normal text-zinc-500">({reviews.length})</span>
+              </h2>
+              {reviews.length > 2 ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => scrollRow(reviewsRowRef, "left")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => scrollRow(reviewsRowRef, "right")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <div
+              ref={reviewsRowRef}
+              className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar"
+            >
+              {reviews.map((review) => (
+                <ReviewCard key={review.id} review={review} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {hasProviders ? (
+          <section className="mb-10 border-t border-zinc-800 pt-8">
+            <h2 className="mb-4 text-xl font-bold text-white">Where to Watch</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {usProviders!.flatrate?.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
+                  <p className="mb-2.5 text-xs font-semibold text-green-400 uppercase tracking-wider">Stream</p>
+                  <div className="flex flex-wrap gap-2">
+                    {usProviders!.flatrate.map((p) => (
+                      <div
+                        key={p.provider_id}
+                        className="flex items-center gap-2 rounded bg-zinc-800/80 px-2.5 py-1.5"
+                      >
+                        {p.logo_path ? (
+                          <Image
+                            src={tmdbImage(p.logo_path, "w45") ?? ""}
+                            alt={p.provider_name}
+                            width={20}
+                            height={20}
+                            className="rounded"
+                          />
+                        ) : null}
+                        <span className="text-xs font-medium text-white/80">{p.provider_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {usProviders!.rent?.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
+                  <p className="mb-2.5 text-xs font-semibold text-blue-400 uppercase tracking-wider">Rent</p>
+                  <div className="flex flex-wrap gap-2">
+                    {usProviders!.rent.map((p) => (
+                      <div
+                        key={p.provider_id}
+                        className="flex items-center gap-2 rounded bg-zinc-800/80 px-2.5 py-1.5"
+                      >
+                        {p.logo_path ? (
+                          <Image
+                            src={tmdbImage(p.logo_path, "w45") ?? ""}
+                            alt={p.provider_name}
+                            width={20}
+                            height={20}
+                            className="rounded"
+                          />
+                        ) : null}
+                        <span className="text-xs font-medium text-white/80">{p.provider_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {usProviders!.buy?.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
+                  <p className="mb-2.5 text-xs font-semibold text-yellow-400 uppercase tracking-wider">Buy</p>
+                  <div className="flex flex-wrap gap-2">
+                    {usProviders!.buy.map((p) => (
+                      <div
+                        key={p.provider_id}
+                        className="flex items-center gap-2 rounded bg-zinc-800/80 px-2.5 py-1.5"
+                      >
+                        {p.logo_path ? (
+                          <Image
+                            src={tmdbImage(p.logo_path, "w45") ?? ""}
+                            alt={p.provider_name}
+                            width={20}
+                            height={20}
+                            className="rounded"
+                          />
+                        ) : null}
+                        <span className="text-xs font-medium text-white/80">{p.provider_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {hasProduction ? (
+          <section className="mb-10 border-t border-zinc-800 pt-8">
+            <h2 className="mb-4 text-xl font-bold text-white">Production</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {movie.production_companies.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
+                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Studios</p>
+                  <div className="flex flex-col gap-1.5">
+                    {movie.production_companies.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2">
+                        {c.logo_path ? (
+                          <div className="relative h-6 w-8 flex-shrink-0">
+                            <Image
+                              src={tmdbImage(c.logo_path, "w92") ?? ""}
+                              alt={c.name}
+                              fill
+                              className="object-contain"
+                            />
+                          </div>
+                        ) : null}
+                        <span className="text-sm text-white/80">{c.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {movie.production_countries.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
+                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Countries</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {movie.production_countries.map((c) => (
+                      <span
+                        key={c.iso_3166_1}
+                        className="rounded bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
+                      >
+                        {c.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {movie.spoken_languages.length ? (
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
+                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Languages</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {movie.spoken_languages.map((lang) => (
+                      <span
+                        key={lang.iso_639_1}
+                        className="rounded bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
+                      >
+                        {lang.english_name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {hasKeywords ? (
+          <section className="mb-10 border-t border-zinc-800 pt-8">
+            <h2 className="mb-4 text-xl font-bold text-white">Keywords</h2>
+            <div className="flex flex-wrap gap-2">
+              {keywords.map((kw) => (
+                <span
+                  key={kw.id}
+                  className="rounded-full bg-zinc-800/80 px-3 py-1 text-xs font-medium text-zinc-300 ring-1 ring-zinc-700/50"
+                >
+                  {kw.name}
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {relatedTitles.length ? (
-          <section>
+          <section className="border-t border-zinc-800 pt-8">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white">More Like This</h2>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => scrollRelated("left")}
+                  onClick={() => scrollRow(relatedRowRef, "left")}
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => scrollRelated("right")}
+                  onClick={() => scrollRow(relatedRowRef, "right")}
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
                 >
                   <ChevronRight className="h-4 w-4" />

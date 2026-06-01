@@ -6,7 +6,7 @@ import { cache } from "react";
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
-type TMDBImageAsset = {
+export type TMDBImageAsset = {
   file_path: string | null;
   height: number;
   iso_639_1: string | null;
@@ -31,7 +31,7 @@ type TMDBProvider = {
   provider_name: string;
 };
 
-type TMDBWatchProviderResult = {
+export type TMDBWatchProviderResult = {
   ads?: TMDBProvider[];
   buy?: TMDBProvider[];
   flatrate?: TMDBProvider[];
@@ -40,7 +40,7 @@ type TMDBWatchProviderResult = {
   rent?: TMDBProvider[];
 };
 
-type TMDBReview = {
+export type TMDBReview = {
   author: string;
   author_details?: {
     avatar_path: string | null;
@@ -64,7 +64,7 @@ type TMDBCreditPerson = {
   profile_path: string | null;
 };
 
-type TMDBKeyword = {
+export type TMDBKeyword = {
   id: number;
   name: string;
 };
@@ -102,8 +102,13 @@ export interface TVSeasonDetails {
   season_number: number;
 }
 
+type TMDBExternalIDs = {
+  imdb_id: string | null;
+};
+
 export interface TVSeriesDetails {
   backdrop_path: string | null;
+  external_ids?: TMDBExternalIDs;
   content_ratings?: {
     results: Array<{ iso_3166_1: string; rating: string }>;
   };
@@ -225,7 +230,7 @@ async function tmdbGet<T>(
 
 export const getTVDetails = cache(async (seriesId: string) => {
   return tmdbGet<TVSeriesDetails>(
-    `/tv/${seriesId}?append_to_response=videos,credits,images,content_ratings,watch/providers,keywords,recommendations,similar,reviews&language=en-US&include_image_language=en,null`,
+    `/tv/${seriesId}?append_to_response=videos,credits,images,content_ratings,watch/providers,keywords,recommendations,similar,reviews,external_ids&language=en-US&include_image_language=en,null`,
     "Failed to fetch TV details from TMDB",
   );
 });

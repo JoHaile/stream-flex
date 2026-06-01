@@ -6,7 +6,7 @@ import { cache } from "react";
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
-type TMDBImageAsset = {
+export type TMDBImageAsset = {
   file_path: string | null;
   height: number;
   width: number;
@@ -40,13 +40,13 @@ type TMDBCrewMember = {
   job: string;
 };
 
-type TMDBProvider = {
+export type TMDBProvider = {
   provider_id: number;
   provider_name: string;
   logo_path: string | null;
 };
 
-type TMDBReview = {
+export type TMDBReview = {
   id: string;
   author: string;
   content: string;
@@ -70,12 +70,12 @@ export type TMDBMovieCard = {
   overview: string;
 };
 
-type TMDBKeyword = {
+export type TMDBKeyword = {
   id: number;
   name: string;
 };
 
-type TMDBWatchProviderResult = {
+export type TMDBWatchProviderResult = {
   link?: string;
   flatrate?: TMDBProvider[];
   rent?: TMDBProvider[];
