@@ -106,7 +106,7 @@ export default async function HomePage() {
         <MediaRow
           title="Trending Now"
           items={trendingAll}
-          seeAllHref="/discover/all/trending"
+          seeAllHref="/discover/movie/trending"
         />
 
         <MediaRow
