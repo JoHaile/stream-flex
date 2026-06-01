@@ -74,13 +74,6 @@ export default function EpisodeList({
         const data = await getTVSeasonDetails(seriesId, selectedSeason);
         if (data && data.episodes) {
           setLoadedEpisodes(data.episodes);
-          if (data.episodes[0]) {
-            onEpisodeSelectRef.current?.(
-              selectedSeason,
-              data.episodes[0].episode_number,
-              data.episodes[0],
-            );
-          }
         }
       } catch (error) {
         console.error("Error fetching season:", error);

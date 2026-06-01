@@ -226,31 +226,42 @@ export default function MovieDetailClient({
 
       <main className="mx-auto max-w-7xl px-6 pb-16">
         {showPlayer ? (
-          <section className="-mt-20 relative z-10 mb-10 overflow-hidden rounded-lg bg-black shadow-2xl">
-            <div className="relative aspect-video w-full">
-              <iframe
-                src={getEmbedUrl(movieId)}
-                title={movie.title || "Movie player"}
-                className="absolute inset-0 h-full w-full border-none"
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-            <div className="flex items-center justify-between bg-zinc-900 px-5 py-3">
-              <div>
-                <p className="text-xs font-medium text-zinc-400">Now Playing</p>
-                <p className="text-sm font-semibold text-white">
-                  {movie.title}
-                </p>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowPlayer(false)}
+          >
+            <div className="relative w-full max-w-5xl mx-4">
+              <button
+                onClick={() => setShowPlayer(false)}
+                className="absolute -top-10 right-0 text-sm font-medium text-zinc-400 hover:text-white transition"
+              >
+                Close
+              </button>
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl">
+                <iframe
+                  src={getEmbedUrl(movieId)}
+                  title={movie.title || "Movie player"}
+                  className="absolute inset-0 h-full w-full border-none"
+                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
               </div>
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <span>{formatRuntime(movie.runtime)}</span>
-                {movie.release_date ? (
-                  <span>{formatDate(movie.release_date)}</span>
-                ) : null}
+              <div className="mt-2 flex items-center justify-between px-1">
+                <div>
+                  <p className="text-xs font-medium text-zinc-400">Now Playing</p>
+                  <p className="text-sm font-semibold text-white">
+                    {movie.title}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <span>{formatRuntime(movie.runtime)}</span>
+                  {movie.release_date ? (
+                    <span>{formatDate(movie.release_date)}</span>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </section>
+          </div>
         ) : null}
 
         {cast.length ? (
