@@ -34,7 +34,7 @@ export default function CatalogPagination({
         page === "ellipsis" ? (
           <span
             key={`ellipsis-${index}`}
-            className="px-2 text-sm text-slate-500"
+            className="px-2 text-sm text-muted-foreground"
           >
             ...
           </span>
@@ -75,7 +75,7 @@ function PaginationLink({
       <span
         className={cn(
           buttonVariants({ size: "sm", variant: "outline" }),
-          "cursor-not-allowed border-white/10 bg-white/[0.03] text-slate-500 opacity-60",
+          "cursor-not-allowed border-border bg-muted/30 text-muted-foreground opacity-60",
         )}
       >
         {children}
@@ -90,8 +90,8 @@ function PaginationLink({
       className={cn(
         buttonVariants({ size: "sm", variant: "outline" }),
         isActive
-          ? "border-sky-300/40 bg-sky-300/12 text-sky-100"
-          : "border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.1]",
+          ? "border-primary/40 bg-primary/12 text-primary-foreground"
+          : "border-border bg-muted/30 text-foreground hover:bg-accent",
       )}
     >
       {children}

@@ -49,15 +49,15 @@ export default function MediaCard({
         )}
 
         {/* Hover overlay */}
-        <div className="card-overlay absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl">
-          <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
-            <PlayIcon className="w-5 h-5 text-black ml-0.5" fill="currentColor" />
+        <div className="card-overlay absolute inset-0 bg-background/40 flex items-center justify-center rounded-xl">
+          <div className="w-10 h-10 rounded-full bg-foreground/90 flex items-center justify-center">
+            <PlayIcon className="w-5 h-5 text-background ml-0.5" fill="currentColor" />
           </div>
         </div>
 
         {/* Rating badge */}
         {voteAverage !== undefined && voteAverage > 0 && (
-          <div className="absolute top-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-md z-10">
+          <div className="absolute top-2 right-2 bg-background/70 text-foreground text-[10px] font-semibold px-1.5 py-0.5 rounded-md z-10">
             ★ {voteAverage.toFixed(1)}
           </div>
         )}

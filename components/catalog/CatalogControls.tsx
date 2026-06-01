@@ -69,7 +69,7 @@ export default function CatalogControls({
   };
 
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-sm md:p-5">
+    <div className="rounded-[28px] border border-border bg-card p-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-sm md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
         {mediaTypeOptions?.length ? (
           <FilterSelect
@@ -107,7 +107,7 @@ export default function CatalogControls({
             size="sm"
             onClick={resetFilters}
             disabled={isPending}
-            className="border-white/10 bg-white/[0.05] text-slate-100 hover:bg-white/[0.12]"
+            className="border-border bg-muted text-foreground hover:bg-accent"
           >
             Reset
           </Button>
@@ -130,14 +130,14 @@ function FilterSelect({
 }) {
   return (
     <div className="min-w-[180px] flex-1 md:flex-none">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </p>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-full border-white/10 bg-black/20 text-slate-100 hover:bg-black/30">
+        <SelectTrigger className="w-full border-border bg-muted text-foreground hover:bg-accent">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="border border-white/10 bg-[#0b1524] text-slate-100">
+        <SelectContent className="border border-border bg-card text-foreground">
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}

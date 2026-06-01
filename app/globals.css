@@ -162,10 +162,10 @@
 .hero-gradient {
   background: linear-gradient(
     to right,
-    rgba(255, 255, 255, 1) 0%,
-    rgba(255, 255, 255, 0.95) 25%,
-    rgba(255, 255, 255, 0.7) 50%,
-    rgba(255, 255, 255, 0) 100%
+    color-mix(in oklch, var(--background) 100%, transparent) 0%,
+    color-mix(in oklch, var(--background) 95%, transparent) 25%,
+    color-mix(in oklch, var(--background) 70%, transparent) 50%,
+    transparent 100%
   );
 }
 
@@ -174,11 +174,11 @@
   transition: background-color 0.2s ease, transform 0.15s ease;
 }
 .episode-card:hover {
-  background-color: rgba(0, 0, 0, 0.04);
+  background-color: color-mix(in oklch, var(--foreground) 6%, transparent);
 }
 .episode-card.active {
-  background-color: rgba(0, 0, 0, 0.06);
-  border-left: 3px solid oklch(0.205 0 0);
+  background-color: color-mix(in oklch, var(--foreground) 8%, transparent);
+  border-left: 3px solid var(--foreground);
 }
 
 /* Scroll row fade edges */
@@ -189,7 +189,7 @@
   top: 0;
   bottom: 0;
   width: 60px;
-  background: linear-gradient(to left, white, transparent);
+  background: linear-gradient(to left, var(--background), transparent);
   pointer-events: none;
   z-index: 2;
 }

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import EpisodeList from "@/components/shared/EpisodeList";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,7 +28,7 @@ interface TVSeriesDetailClientProps {
 }
 
 const pageShell =
-  "rounded-[28px] border border-white/10 bg-white/[0.05] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm";
+  "rounded-[28px] border border-border bg-card shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -228,16 +228,15 @@ export default function TVSeriesDetailClient({
     initialEpisodes[0] ?? null,
   );
 
-  const handleEpisodeSelect = (
-    seasonNum: number,
-    episodeNum: number,
-    episode?: TVEpisode,
-  ) => {
-    setCurrentEpisode({ season: seasonNum, episode: episodeNum });
-    if (episode) {
-      setCurrentEpisodeData(episode);
-    }
-  };
+  const handleEpisodeSelect = useCallback(
+    (seasonNum: number, episodeNum: number, episode?: TVEpisode) => {
+      setCurrentEpisode({ season: seasonNum, episode: episodeNum });
+      if (episode) {
+        setCurrentEpisodeData(episode);
+      }
+    },
+    [],
+  );
 
   const posterUrl = tmdbImage(seriesData.poster_path, "w780");
   const heroBackdrop = tmdbImage(seriesData.backdrop_path, "w1280");
@@ -269,8 +268,8 @@ export default function TVSeriesDetailClient({
     null;
 
   return (
-    <div className="min-h-screen bg-[#050b14] text-slate-100">
-      <section className="relative overflow-hidden border-b border-white/10">
+    <div className="min-h-screen bg-background text-foreground">
+      <section className="relative overflow-hidden border-b border-border">
         {heroBackdrop ? (
           <Image
             src={heroBackdrop}
@@ -282,16 +281,16 @@ export default function TVSeriesDetailClient({
           />
         ) : null}
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(79,172,254,0.22),transparent_42%),linear-gradient(180deg,rgba(5,11,20,0.14)_0%,rgba(5,11,20,0.82)_56%,#050b14_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(79,172,254,0.22),transparent_42%),linear-gradient(180deg,color-mix(in oklch,var(--background) 0.14,transparent)_0%,color-mix(in oklch,var(--background) 0.82,transparent)_56%,var(--background)_100%)]" />
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:32px_32px]" />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-6 md:px-6 lg:px-8 lg:pb-[4.5rem] lg:pt-10">
-          <div className="mb-5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.24em] text-slate-300/70">
-            <Link href="/tv-series" className="transition hover:text-white">
+          <div className="mb-5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground/70">
+            <Link href="/tv-series" className="transition hover:text-foreground">
               TV Series
             </Link>
-            <span className="text-slate-500">/</span>
-            <span className="truncate text-slate-100">{seriesData.name}</span>
+            <span className="text-muted-foreground/50">/</span>
+            <span className="truncate text-foreground">{seriesData.name}</span>
           </div>
 
           <div className="max-w-4xl">
@@ -306,13 +305,13 @@ export default function TVSeriesDetailClient({
                 />
               </div>
             ) : (
-              <h1 className="mb-5 max-w-4xl text-4xl font-black tracking-tight text-white md:text-5xl lg:text-6xl">
+              <h1 className="mb-5 max-w-4xl text-4xl font-black tracking-tight text-foreground md:text-5xl lg:text-6xl">
                 {seriesData.name}
               </h1>
             )}
 
             {seriesData.tagline ? (
-              <p className="mb-5 max-w-3xl text-lg italic text-sky-100/90 md:text-xl">
+              <p className="mb-5 max-w-3xl text-lg italic text-primary/90 md:text-xl">
                 {seriesData.tagline}
               </p>
             ) : null}
@@ -320,21 +319,21 @@ export default function TVSeriesDetailClient({
             <div className="mb-6 flex flex-wrap items-center gap-2.5">
               <Badge
                 variant="outline"
-                className="border-white/[0.15] bg-white/10 text-slate-100"
+                    className="border-border bg-muted text-foreground"
               >
                 {showYears}
               </Badge>
               {contentRating ? (
                 <Badge
                   variant="outline"
-                  className="border-white/[0.15] bg-white/10 text-slate-100"
+                      className="border-border bg-muted text-foreground"
                 >
                   {contentRating}
                 </Badge>
               ) : null}
               <Badge
                 variant="outline"
-                className="border-white/[0.15] bg-white/10 text-slate-100"
+                    className="border-border bg-muted text-foreground"
               >
                 {formatRuntime(seriesData.episode_run_time?.[0] ?? null)}
               </Badge>
@@ -342,14 +341,14 @@ export default function TVSeriesDetailClient({
                 <Badge
                   key={genre.id}
                   variant="outline"
-                  className="border-white/[0.15] bg-white/10 text-slate-100"
+                      className="border-border bg-muted text-foreground"
                 >
                   {genre.name}
                 </Badge>
               ))}
             </div>
 
-            <p className="mb-8 max-w-3xl text-base leading-8 text-slate-200/85 md:text-lg">
+            <p className="mb-8 max-w-3xl text-base leading-8 text-foreground/85 md:text-lg">
               {seriesData.overview ||
                 "Story details are not available for this series yet."}
             </p>
@@ -359,7 +358,7 @@ export default function TVSeriesDetailClient({
                 href="#watch-now"
                 className={cn(
                   buttonVariants({ size: "lg" }),
-                  "gap-2 bg-sky-300 px-5 text-slate-950 hover:bg-sky-200",
+                  "gap-2 bg-sky-300 px-5 text-foreground hover:bg-sky-200",
                 )}
               >
                 <PlayIcon className="size-4" fill="currentColor" />
@@ -373,7 +372,7 @@ export default function TVSeriesDetailClient({
                   rel="noreferrer"
                   className={cn(
                     buttonVariants({ size: "lg", variant: "outline" }),
-                    "gap-2 border-white/[0.15] bg-white/[0.06] px-5 text-slate-100 hover:bg-white/[0.12]",
+                    "gap-2 border-border bg-muted/50 px-5 text-foreground hover:bg-accent",
                   )}
                 >
                   <FilmIcon className="size-4" />
@@ -388,7 +387,7 @@ export default function TVSeriesDetailClient({
                   rel="noreferrer"
                   className={cn(
                     buttonVariants({ size: "lg", variant: "outline" }),
-                    "gap-2 border-white/[0.15] bg-white/[0.06] px-5 text-slate-100 hover:bg-white/[0.12]",
+                    "gap-2 border-border bg-muted/50 px-5 text-foreground hover:bg-accent",
                   )}
                 >
                   <GlobeIcon className="size-4" />
@@ -445,72 +444,95 @@ export default function TVSeriesDetailClient({
       <main className="relative mx-auto max-w-7xl px-4 pb-20 pt-8 md:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-8">
-            <section id="watch-now" className={pageShell}>
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4 md:px-6">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.26em] text-sky-200/70">
-                    Now Playing
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+              <section id="watch-now" className={pageShell}>
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-5 py-4 md:px-6">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary-foreground/70">
+                      Now Playing
+                    </p>
+                    <h2 className="mt-1 text-xl font-semibold text-foreground">
+                      {currentEpisodeData?.name
+                        ? `S${currentEpisode.season}E${currentEpisode.episode} · ${currentEpisodeData.name}`
+                        : `Watch ${seriesData.name}`}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {currentEpisodeData?.air_date
+                        ? `Aired ${formatDate(currentEpisodeData.air_date)}`
+                        : `${seriesData.status} series`}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      variant="outline"
+                      className="border-border bg-muted/50 text-foreground"
+                    >
+                      {`Season ${currentEpisode.season}`}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-border bg-muted/50 text-foreground"
+                    >
+                      {runtime ? formatRuntime(runtime) : "Runtime unavailable"}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-border bg-muted/50 text-foreground"
+                    >
+                      {seriesData.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="relative aspect-video overflow-hidden rounded-b-[28px] bg-black">
+                  <iframe
+                    src={getEpisodeEmbedUrl(
+                      seriesId,
+                      currentEpisode.season,
+                      currentEpisode.episode,
+                    )}
+                    title={seriesData.name || "TV series player"}
+                    className="absolute inset-0 h-full w-full border-none"
+                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+
+                <div className="border-t border-border px-5 py-4 md:px-6">
+                  <p className="text-sm leading-7 text-muted-foreground/82">
+                    {currentEpisodeData?.overview ||
+                      seriesData.overview ||
+                      "Episode details are not available right now."}
                   </p>
-                  <h2 className="mt-1 text-xl font-semibold text-white">
-                    {currentEpisodeData?.name
-                      ? `S${currentEpisode.season}E${currentEpisode.episode} · ${currentEpisodeData.name}`
-                      : `Watch ${seriesData.name}`}
+                </div>
+              </section>
+
+              <div className={pageShell}>
+                <div className="border-b border-border px-5 py-4 md:px-6">
+                  <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary-foreground/70">
+                    Episodes
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-foreground">
+                    Season browser
                   </h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {currentEpisodeData?.air_date
-                      ? `Aired ${formatDate(currentEpisodeData.air_date)}`
-                      : `${seriesData.status} series`}
-                  </p>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Badge
-                    variant="outline"
-                    className="border-white/[0.15] bg-white/[0.08] text-slate-100"
-                  >
-                    {`Season ${currentEpisode.season}`}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="border-white/[0.15] bg-white/[0.08] text-slate-100"
-                  >
-                    {runtime ? formatRuntime(runtime) : "Runtime unavailable"}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className="border-white/[0.15] bg-white/[0.08] text-slate-100"
-                  >
-                    {seriesData.status}
-                  </Badge>
+                <div className="p-5 md:p-6">
+                  <EpisodeList
+                    currentEpisode={currentEpisode}
+                    initialEpisodes={initialEpisodes}
+                    initialSeason={initialSeason}
+                    onEpisodeSelect={handleEpisodeSelect}
+                    seasons={seriesData.seasons || []}
+                    seriesId={seriesId}
+                  />
                 </div>
               </div>
-
-              <div className="relative aspect-video overflow-hidden rounded-b-[28px] bg-black">
-                <iframe
-                  src={getEpisodeEmbedUrl(
-                    seriesId,
-                    currentEpisode.season,
-                    currentEpisode.episode,
-                  )}
-                  title={seriesData.name || "TV series player"}
-                  className="absolute inset-0 h-full w-full border-none"
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-
-              <div className="border-t border-white/10 px-5 py-4 md:px-6">
-                <p className="text-sm leading-7 text-slate-300/82">
-                  {currentEpisodeData?.overview ||
-                    seriesData.overview ||
-                    "Episode details are not available right now."}
-                </p>
-              </div>
-            </section>
+            </div>
 
             <div className="grid gap-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
               <GlassSection eyebrow="Storyline" title="Series overview">
-                <p className="text-sm leading-7 text-slate-200/85 md:text-base">
+                <p className="text-sm leading-7 text-foreground/85 md:text-base">
                   {seriesData.overview ||
                     "TMDB does not have an overview for this series yet."}
                 </p>
@@ -558,7 +580,7 @@ export default function TVSeriesDetailClient({
                       />
                     ))
                   ) : (
-                    <p className="text-sm text-slate-300/80">
+                    <p className="text-sm text-muted-foreground/80">
                       Cast details are not available for this series yet.
                     </p>
                   )}
@@ -586,7 +608,7 @@ export default function TVSeriesDetailClient({
                   {gallery.map((image, index) => (
                     <div
                       key={`${image.file_path}-${index}`}
-                      className="relative aspect-video overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.05]"
+                      className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-muted/50"
                     >
                       <Image
                         src={tmdbImage(image.file_path, "w780") ?? ""}
@@ -607,16 +629,16 @@ export default function TVSeriesDetailClient({
                   {reviews.map((review) => (
                     <article
                       key={review.id}
-                      className="rounded-2xl border border-white/[0.08] bg-black/20 p-4"
+                      className="rounded-2xl border border-border bg-muted p-4"
                     >
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold text-foreground">
                             {review.author_details?.name ||
                               review.author ||
                               "Anonymous"}
                           </p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-muted-foreground">
                             {formatDate(review.created_at)}
                           </p>
                         </div>
@@ -628,8 +650,8 @@ export default function TVSeriesDetailClient({
                         ) : null}
                       </div>
 
-                      <QuoteIcon className="mb-3 size-4 text-slate-500" />
-                      <p className="line-clamp-6 text-sm leading-7 text-slate-200/85">
+                      <QuoteIcon className="mb-3 size-4 text-muted-foreground/50" />
+                      <p className="line-clamp-6 text-sm leading-7 text-foreground/85">
                         {review.content}
                       </p>
 
@@ -637,7 +659,7 @@ export default function TVSeriesDetailClient({
                         href={review.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-sky-200 transition hover:text-sky-100"
+                        className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-foreground transition hover:text-sky-100"
                       >
                         Read full review
                         <ExternalLinkIcon className="size-3.5" />
@@ -655,7 +677,7 @@ export default function TVSeriesDetailClient({
 
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
             <section className={pageShell}>
-              <div className="relative aspect-[2/3] overflow-hidden rounded-[28px] rounded-b-none border-b border-white/10 bg-white/[0.05]">
+              <div className="relative aspect-[2/3] overflow-hidden rounded-[28px] rounded-b-none border-b border-border bg-muted/50">
                 {posterUrl ? (
                   <Image
                     src={posterUrl}
@@ -666,7 +688,7 @@ export default function TVSeriesDetailClient({
                     sizes="(max-width: 1024px) 100vw, 320px"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 p-6 text-center text-lg font-semibold text-slate-200">
+                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-muted-foreground/30 to-background p-6 text-center text-lg font-semibold text-foreground">
                     {seriesData.name}
                   </div>
                 )}
@@ -692,7 +714,7 @@ export default function TVSeriesDetailClient({
                   />
                 </div>
 
-                <div className="space-y-3 border-t border-white/10 pt-4 text-sm">
+                <div className="space-y-3 border-t border-border pt-4 text-sm">
                   <SidebarRow label="First aired">
                     {formatDate(seriesData.first_air_date)}
                   </SidebarRow>
@@ -710,29 +732,29 @@ export default function TVSeriesDetailClient({
 
                 {seriesData.next_episode_to_air ? (
                   <div className="rounded-2xl border border-sky-300/20 bg-sky-300/10 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/75">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground/75">
                       Next episode
                     </p>
-                    <p className="mt-2 font-semibold text-white">
+                    <p className="mt-2 font-semibold text-foreground">
                       {seriesData.next_episode_to_air.name}
                     </p>
-                    <p className="mt-1 text-sm text-slate-300/80">
+                    <p className="mt-1 text-sm text-muted-foreground/80">
                       Season {seriesData.next_episode_to_air.season_number}, Episode{" "}
                       {seriesData.next_episode_to_air.episode_number}
                     </p>
-                    <p className="mt-2 text-sm text-slate-300/78">
+                    <p className="mt-2 text-sm text-muted-foreground/78">
                       {formatDate(seriesData.next_episode_to_air.air_date)}
                     </p>
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+                <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                   {seriesData.homepage ? (
                     <a
                       href={seriesData.homepage}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:bg-white/[0.14]"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground transition hover:bg-accent"
                     >
                       <GlobeIcon className="size-3.5" />
                       Website
@@ -743,7 +765,7 @@ export default function TVSeriesDetailClient({
                       href={`https://www.youtube.com/watch?v=${trailer.key}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:bg-white/[0.14]"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground transition hover:bg-accent"
                     >
                       <PlayIcon className="size-3.5" />
                       Trailer
@@ -753,24 +775,13 @@ export default function TVSeriesDetailClient({
               </div>
             </section>
 
-            <GlassSection eyebrow="Episodes" title="Season browser">
-              <EpisodeList
-                currentEpisode={currentEpisode}
-                initialEpisodes={initialEpisodes}
-                initialSeason={initialSeason}
-                onEpisodeSelect={handleEpisodeSelect}
-                seasons={seriesData.seasons || []}
-                seriesId={seriesId}
-              />
-            </GlassSection>
-
             <GlassSection eyebrow="Watch" title="Where to watch in the US">
               {providers.length ? (
                 <div className="space-y-4">
                   {providers.map((group) => (
                     <div key={group.label}>
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-white">
+                        <p className="text-sm font-semibold text-foreground">
                           {group.label}
                         </p>
                         {group.link ? (
@@ -778,7 +789,7 @@ export default function TVSeriesDetailClient({
                             href={group.link}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-xs font-medium text-sky-200 transition hover:text-sky-100"
+                            className="text-xs font-medium text-primary-foreground transition hover:text-sky-100"
                           >
                             Open provider list
                           </a>
@@ -789,7 +800,7 @@ export default function TVSeriesDetailClient({
                         {group.providers.slice(0, 6).map((provider) => (
                           <div
                             key={provider.provider_id}
-                            className="flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/20 px-2.5 py-2"
+                            className="flex items-center gap-2 rounded-2xl border border-border bg-muted px-2.5 py-2"
                           >
                             {provider.logo_path ? (
                               <div className="relative size-8 overflow-hidden rounded-lg">
@@ -802,7 +813,7 @@ export default function TVSeriesDetailClient({
                                 />
                               </div>
                             ) : null}
-                            <span className="text-xs font-medium text-slate-200">
+                            <span className="text-xs font-medium text-foreground">
                               {provider.provider_name}
                             </span>
                           </div>
@@ -812,7 +823,7 @@ export default function TVSeriesDetailClient({
                   ))}
                 </div>
               ) : (
-                <p className="text-sm leading-7 text-slate-300/80">
+                <p className="text-sm leading-7 text-muted-foreground/80">
                   TMDB does not list US watch providers for this series right now.
                 </p>
               )}
@@ -848,7 +859,7 @@ export default function TVSeriesDetailClient({
                     <Badge
                       key={keyword.id}
                       variant="outline"
-                      className="border-white/10 bg-white/[0.06] text-slate-100"
+                      className="border-border bg-muted/50 text-foreground"
                     >
                       {keyword.name}
                     </Badge>
@@ -875,15 +886,15 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
+    <div className="rounded-3xl border border-border bg-muted p-4 backdrop-blur">
       <div className="mb-3 flex items-center gap-2 text-sky-100/80">
         <Icon className="size-4" />
         <span className="text-xs font-semibold uppercase tracking-[0.22em]">
           {label}
         </span>
       </div>
-      <p className="text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-sm text-slate-300/70">{caption}</p>
+      <p className="text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground/70">{caption}</p>
     </div>
   );
 }
@@ -898,11 +909,11 @@ function CrewCard({
   names: string[];
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.26em] text-sky-200/70">
+    <div className="rounded-3xl border border-border bg-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary-foreground/70">
         {eyebrow}
       </p>
-      <p className="mt-2 text-base font-semibold text-white">
+      <p className="mt-2 text-base font-semibold text-foreground">
         {names.length ? listFormatter.format(names.slice(0, 3)) : fallback}
       </p>
     </div>
@@ -922,11 +933,11 @@ function GlassSection({
 }) {
   return (
     <section className={cn(pageShell, className)}>
-      <div className="border-b border-white/10 px-5 py-4 md:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.26em] text-sky-200/70">
+      <div className="border-b border-border px-5 py-4 md:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary-foreground/70">
           {eyebrow}
         </p>
-        <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
+        <h2 className="mt-1 text-xl font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-5 md:p-6">{children}</div>
     </section>
@@ -935,11 +946,11 @@ function GlassSection({
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+    <div className="rounded-2xl border border-border bg-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-sm leading-7 text-slate-100">{value}</p>
+      <p className="mt-2 text-sm leading-7 text-foreground">{value}</p>
     </div>
   );
 }
@@ -957,8 +968,8 @@ function CastCard({
   const profileUrl = tmdbImage(member.profile_path, "w185");
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-black/20 p-3">
-      <div className="relative size-14 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900">
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted p-3">
+      <div className="relative size-14 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-muted to-muted/80">
         {profileUrl ? (
           <Image
             src={profileUrl}
@@ -968,7 +979,7 @@ function CastCard({
             sizes="56px"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-200">
+          <div className="flex h-full items-center justify-center text-sm font-semibold text-foreground">
             {member.name
               .split(" ")
               .slice(0, 2)
@@ -979,8 +990,8 @@ function CastCard({
       </div>
 
       <div className="min-w-0">
-        <p className="truncate font-semibold text-white">{member.name}</p>
-        <p className="truncate text-sm text-slate-300/80">
+        <p className="truncate font-semibold text-foreground">{member.name}</p>
+        <p className="truncate text-sm text-muted-foreground/80">
           {member.character || "Role unavailable"}
         </p>
       </div>
@@ -1000,14 +1011,14 @@ function SeasonCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border bg-black/20",
+        "overflow-hidden rounded-2xl border bg-muted",
         isActive
           ? "border-sky-300/35 bg-sky-300/10"
-          : "border-white/[0.08]",
+          : "border-border",
       )}
     >
       <div className="flex gap-4 p-4">
-        <div className="relative h-24 w-[4.5rem] shrink-0 overflow-hidden rounded-xl bg-white/[0.04]">
+        <div className="relative h-24 w-[4.5rem] shrink-0 overflow-hidden rounded-xl bg-muted/30">
           {posterUrl ? (
             <Image
               src={posterUrl}
@@ -1017,19 +1028,19 @@ function SeasonCard({
               sizes="72px"
             />
           ) : (
-            <div className="flex h-full items-center justify-center px-2 text-center text-xs font-semibold text-slate-200">
+            <div className="flex h-full items-center justify-center px-2 text-center text-xs font-semibold text-foreground">
               {season.name}
             </div>
           )}
         </div>
 
         <div className="min-w-0">
-          <p className="font-semibold text-white">{season.name}</p>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
+          <p className="font-semibold text-foreground">{season.name}</p>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{season.air_date?.slice(0, 4) || "TBA"}</span>
             <span>{season.episode_count} episodes</span>
           </div>
-          <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-300/78">
+          <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground/78">
             {season.overview || "Season synopsis is not available."}
           </p>
         </div>
@@ -1054,7 +1065,7 @@ function PosterRail({
             href={`/tv-series/${item.id}`}
             className="group block w-[170px] shrink-0"
           >
-            <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.05] transition duration-300 group-hover:-translate-y-1 group-hover:border-sky-200/30">
+            <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-border bg-muted/50 transition duration-300 group-hover:-translate-y-1 group-hover:border-sky-200/30">
               {item.poster_path ? (
                 <Image
                   src={tmdbImage(item.poster_path, "w342") ?? ""}
@@ -1064,17 +1075,17 @@ function PosterRail({
                   sizes="170px"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center p-4 text-center text-sm font-medium text-slate-200">
+                <div className="flex h-full items-center justify-center p-4 text-center text-sm font-medium text-foreground">
                   {item.name}
                 </div>
               )}
             </div>
 
             <div className="mt-3 px-1">
-              <p className="line-clamp-2 font-semibold text-white transition group-hover:text-sky-100">
+              <p className="line-clamp-2 font-semibold text-foreground transition group-hover:text-sky-100">
                 {item.name}
               </p>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <span>{item.first_air_date?.slice(0, 4) || "TBA"}</span>
                 {item.vote_average ? (
                   <span className="inline-flex items-center gap-1">
@@ -1093,11 +1104,11 @@ function PosterRail({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+    <div className="rounded-2xl border border-border bg-muted p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -1111,8 +1122,8 @@ function SidebarRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <span className="min-w-0 text-slate-400">{label}</span>
-      <span className="text-right text-slate-100">{children}</span>
+      <span className="min-w-0 text-muted-foreground">{label}</span>
+      <span className="text-right text-foreground">{children}</span>
     </div>
   );
 }

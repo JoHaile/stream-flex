@@ -45,7 +45,7 @@ export default async function HomePage() {
           ) : null}
 
           <div className="hero-gradient absolute inset-0 z-10" />
-          <div className="absolute inset-x-0 bottom-0 z-10 h-40 bg-gradient-to-t from-white to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 h-40 bg-gradient-to-t from-background to-transparent" />
 
           <div className="absolute inset-0 z-20 flex items-end pb-16 md:pb-20">
             <div className="mx-auto w-full max-w-7xl px-6">

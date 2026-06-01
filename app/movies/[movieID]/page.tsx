@@ -30,7 +30,7 @@ type Props = {
 };
 
 const pageShell =
-  "rounded-[28px] border border-white/10 bg-white/[0.05] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm";
+  "rounded-[28px] border border-border bg-card shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -315,8 +315,8 @@ export default async function Page({ params }: Props) {
     .filter(Boolean);
 
   return (
-    <div className="min-h-screen bg-[#050b14] text-slate-100">
-      <section className="relative overflow-hidden border-b border-white/10">
+    <div className="min-h-screen bg-background text-foreground">
+      <section className="relative overflow-hidden border-b border-border">
         {heroBackdrop ? (
           <Image
             src={heroBackdrop}
@@ -328,16 +328,16 @@ export default async function Page({ params }: Props) {
           />
         ) : null}
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(79,172,254,0.24),transparent_40%),linear-gradient(180deg,rgba(5,11,20,0.12)_0%,rgba(5,11,20,0.82)_58%,#050b14_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(79,172,254,0.24),transparent_40%),linear-gradient(180deg,color-mix(in oklch,var(--background) 0.12,transparent)_0%,color-mix(in oklch,var(--background) 0.82,transparent)_58%,var(--background)_100%)]" />
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:32px_32px]" />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-14 pt-6 md:px-6 lg:px-8 lg:pb-[4.5rem] lg:pt-10">
-          <div className="mb-5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.24em] text-slate-300/70">
-            <Link href="/movies" className="transition hover:text-white">
+          <div className="mb-5 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground/70">
+            <Link href="/movies" className="transition hover:text-foreground">
               Movies
             </Link>
-            <span className="text-slate-500">/</span>
-            <span className="truncate text-slate-100">{movie.title}</span>
+            <span className="text-muted-foreground/50">/</span>
+            <span className="truncate text-foreground">{movie.title}</span>
           </div>
 
           <div className="max-w-4xl">
@@ -352,13 +352,13 @@ export default async function Page({ params }: Props) {
                 />
               </div>
             ) : (
-              <h1 className="mb-5 max-w-4xl text-4xl font-black tracking-tight text-white md:text-5xl lg:text-6xl">
+              <h1 className="mb-5 max-w-4xl text-4xl font-black tracking-tight text-foreground md:text-5xl lg:text-6xl">
                 {movie.title}
               </h1>
             )}
 
             {movie.tagline ? (
-              <p className="mb-5 max-w-3xl text-lg text-sky-100/90 italic md:text-xl">
+              <p className="mb-5 max-w-3xl text-lg text-primary/90 italic md:text-xl">
                 {movie.tagline}
               </p>
             ) : null}
@@ -366,21 +366,21 @@ export default async function Page({ params }: Props) {
             <div className="mb-6 flex flex-wrap items-center gap-2.5">
               <Badge
                 variant="outline"
-                className="border-white/[0.15] bg-white/10 text-slate-100"
+                    className="border-border bg-muted text-foreground"
               >
                 {releaseYear}
               </Badge>
               {certification ? (
                 <Badge
                   variant="outline"
-                  className="border-white/[0.15] bg-white/10 text-slate-100"
+                      className="border-border bg-muted text-foreground"
                 >
                   {certification}
                 </Badge>
               ) : null}
               <Badge
                 variant="outline"
-                className="border-white/[0.15] bg-white/10 text-slate-100"
+                    className="border-border bg-muted text-foreground"
               >
                 {formatRuntime(movie.runtime)}
               </Badge>
@@ -388,14 +388,14 @@ export default async function Page({ params }: Props) {
                 <Badge
                   key={genre.id}
                   variant="outline"
-                  className="border-white/[0.15] bg-white/10 text-slate-100"
+                      className="border-border bg-muted text-foreground"
                 >
                   {genre.name}
                 </Badge>
               ))}
             </div>
 
-            <p className="mb-8 max-w-3xl text-base leading-8 text-slate-200/85 md:text-lg">
+            <p className="mb-8 max-w-3xl text-base leading-8 text-foreground/85 md:text-lg">
               {movie.overview || "Plot details are not available for this title yet."}
             </p>
 
@@ -404,7 +404,7 @@ export default async function Page({ params }: Props) {
                 href="#watch-now"
                 className={cn(
                   buttonVariants({ size: "lg" }),
-                  "gap-2 bg-sky-300 px-5 text-slate-950 hover:bg-sky-200",
+                  "gap-2 bg-sky-300 px-5 text-sky-950 hover:bg-sky-200",
                 )}
               >
                 <PlayIcon className="size-4" fill="currentColor" />
@@ -416,27 +416,27 @@ export default async function Page({ params }: Props) {
                   href={`https://www.youtube.com/watch?v=${trailer.key}`}
                   target="_blank"
                   rel="noreferrer"
-                  className={cn(
-                    buttonVariants({ size: "lg", variant: "outline" }),
-                    "gap-2 border-white/[0.15] bg-white/[0.06] px-5 text-slate-100 hover:bg-white/[0.12]",
-                  )}
-                >
-                  <FilmIcon className="size-4" />
-                  Official trailer
-                </a>
-              ) : null}
+                    className={cn(
+                      buttonVariants({ size: "lg", variant: "outline" }),
+                      "gap-2 border-border bg-muted/50 px-5 text-foreground hover:bg-accent",
+                    )}
+                  >
+                    <FilmIcon className="size-4" />
+                    Official trailer
+                  </a>
+                ) : null}
 
-              {movie.imdb_id ? (
-                <a
-                  href={`https://www.imdb.com/title/${movie.imdb_id}/`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cn(
-                    buttonVariants({ size: "lg", variant: "outline" }),
-                    "gap-2 border-white/[0.15] bg-white/[0.06] px-5 text-slate-100 hover:bg-white/[0.12]",
-                  )}
-                >
-                  <ExternalLinkIcon className="size-4" />
+                {movie.imdb_id ? (
+                  <a
+                    href={`https://www.imdb.com/title/${movie.imdb_id}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      buttonVariants({ size: "lg", variant: "outline" }),
+                      "gap-2 border-border bg-muted/50 px-5 text-foreground hover:bg-accent",
+                    )}
+                  >
+                    <ExternalLinkIcon className="size-4" />
                   IMDb
                 </a>
               ) : null}
@@ -489,12 +489,12 @@ export default async function Page({ params }: Props) {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-8">
             <section id="watch-now" className={pageShell}>
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4 md:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-5 py-4 md:px-6">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.26em] text-sky-200/70">
+                  <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary/70">
                     Now Playing
                   </p>
-                  <h2 className="mt-1 text-xl font-semibold text-white">
+                  <h2 className="mt-1 text-xl font-semibold text-foreground">
                     Watch {movie.title}
                   </h2>
                 </div>
@@ -502,21 +502,21 @@ export default async function Page({ params }: Props) {
                 <div className="flex flex-wrap gap-2">
                   <Badge
                     variant="outline"
-                    className="border-white/[0.15] bg-white/[0.08] text-slate-100"
+                    className="border-border bg-muted/50 text-foreground"
                   >
                     {formatRuntime(movie.runtime)}
                   </Badge>
                   {certification ? (
                     <Badge
                       variant="outline"
-                      className="border-white/[0.15] bg-white/[0.08] text-slate-100"
+                      className="border-border bg-muted/50 text-foreground"
                     >
                       {certification}
                     </Badge>
                   ) : null}
                   <Badge
                     variant="outline"
-                    className="border-white/[0.15] bg-white/[0.08] text-slate-100"
+                    className="border-border bg-muted/50 text-foreground"
                   >
                     {movie.status}
                   </Badge>
@@ -539,7 +539,7 @@ export default async function Page({ params }: Props) {
                 eyebrow="Storyline"
                 title="What this movie is about"
               >
-                <p className="text-sm leading-7 text-slate-200/85 md:text-base">
+                <p className="text-sm leading-7 text-foreground/85 md:text-base">
                   {movie.overview ||
                     "TMDB does not have an overview for this title yet."}
                 </p>
@@ -579,7 +579,7 @@ export default async function Page({ params }: Props) {
                       <CastCard key={member.id} member={member} />
                     ))
                   ) : (
-                    <p className="text-sm text-slate-300/80">
+                    <p className="text-sm text-muted-foreground/80">
                       Cast details are not available for this title yet.
                     </p>
                   )}
@@ -593,7 +593,7 @@ export default async function Page({ params }: Props) {
                   {gallery.map((image, index) => (
                     <div
                       key={`${image.file_path}-${index}`}
-                      className="relative aspect-video overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.05]"
+                      className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-muted/50"
                     >
                       <Image
                         src={tmdbImage(image.file_path, "w780") ?? ""}
@@ -614,16 +614,16 @@ export default async function Page({ params }: Props) {
                   {reviews.map((review) => (
                     <article
                       key={review.id}
-                      className="rounded-2xl border border-white/[0.08] bg-black/20 p-4"
+                      className="rounded-2xl border border-border bg-muted p-4"
                     >
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold text-foreground">
                             {review.author_details?.name ||
                               review.author ||
                               "Anonymous"}
                           </p>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-muted-foreground">
                             {formatDate(review.created_at)}
                           </p>
                         </div>
@@ -635,8 +635,8 @@ export default async function Page({ params }: Props) {
                         ) : null}
                       </div>
 
-                      <QuoteIcon className="mb-3 size-4 text-slate-500" />
-                      <p className="line-clamp-6 text-sm leading-7 text-slate-200/85">
+                      <QuoteIcon className="mb-3 size-4 text-muted-foreground/50" />
+                      <p className="line-clamp-6 text-sm leading-7 text-foreground/85">
                         {review.content}
                       </p>
 
@@ -670,7 +670,7 @@ export default async function Page({ params }: Props) {
 
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
             <section className={pageShell}>
-              <div className="relative aspect-[2/3] overflow-hidden rounded-[28px] rounded-b-none border-b border-white/10 bg-white/[0.05]">
+              <div className="relative aspect-[2/3] overflow-hidden rounded-[28px] rounded-b-none border-b border-border bg-card">
                 {posterUrl ? (
                   <Image
                     src={posterUrl}
@@ -681,7 +681,7 @@ export default async function Page({ params }: Props) {
                     sizes="(max-width: 1024px) 100vw, 320px"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 p-6 text-center text-lg font-semibold text-slate-200">
+                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-muted-foreground/30 to-background p-6 text-center text-lg font-semibold text-foreground">
                     {movie.title}
                   </div>
                 )}
@@ -701,7 +701,7 @@ export default async function Page({ params }: Props) {
                   <MiniStat label="Status" value={movie.status || "Unknown"} />
                 </div>
 
-                <div className="space-y-3 border-t border-white/10 pt-4 text-sm">
+                <div className="space-y-3 border-t border-border pt-4 text-sm">
                   <SidebarRow label="Release">
                     {formatDate(movie.release_date)}
                   </SidebarRow>
@@ -718,13 +718,13 @@ export default async function Page({ params }: Props) {
                   </SidebarRow>
                 </div>
 
-                <div className="flex flex-wrap gap-2 border-t border-white/10 pt-4">
+                <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                   {movie.homepage ? (
                     <a
                       href={movie.homepage}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:bg-white/[0.14]"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground transition hover:bg-accent"
                     >
                       <GlobeIcon className="size-3.5" />
                       Website
@@ -735,7 +735,7 @@ export default async function Page({ params }: Props) {
                       href={`https://www.youtube.com/watch?v=${trailer.key}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:bg-white/[0.14]"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground transition hover:bg-accent"
                     >
                       <PlayIcon className="size-3.5" />
                       Trailer
@@ -746,7 +746,7 @@ export default async function Page({ params }: Props) {
                       href={`https://www.imdb.com/title/${movie.imdb_id}/`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 transition hover:bg-white/[0.14]"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-foreground transition hover:bg-accent"
                     >
                       <ExternalLinkIcon className="size-3.5" />
                       IMDb
@@ -762,7 +762,7 @@ export default async function Page({ params }: Props) {
                   {providers.map((group) => (
                     <div key={group.label}>
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-white">
+                        <p className="text-sm font-semibold text-foreground">
                           {group.label}
                         </p>
                         {group.link ? (
@@ -781,7 +781,7 @@ export default async function Page({ params }: Props) {
                         {group.providers.slice(0, 6).map((provider) => (
                           <div
                             key={provider.provider_id}
-                            className="flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/20 px-2.5 py-2"
+                            className="flex items-center gap-2 rounded-2xl border border-border bg-muted px-2.5 py-2"
                           >
                             {provider.logo_path ? (
                               <div className="relative size-8 overflow-hidden rounded-lg">
@@ -794,7 +794,7 @@ export default async function Page({ params }: Props) {
                                 />
                               </div>
                             ) : null}
-                            <span className="text-xs font-medium text-slate-200">
+                            <span className="text-xs font-medium text-foreground">
                               {provider.provider_name}
                             </span>
                           </div>
@@ -804,7 +804,7 @@ export default async function Page({ params }: Props) {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm leading-7 text-slate-300/80">
+                <p className="text-sm leading-7 text-muted-foreground/80">
                   TMDB does not list US watch providers for this title right now.
                 </p>
               )}
@@ -840,7 +840,7 @@ export default async function Page({ params }: Props) {
                     <Badge
                       key={keyword.id}
                       variant="outline"
-                      className="border-white/10 bg-white/[0.06] text-slate-100"
+                      className="border-border bg-muted/50 text-foreground"
                     >
                       {keyword.name}
                     </Badge>
@@ -871,15 +871,15 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-      <div className="mb-3 flex items-center gap-2 text-sky-100/80">
+    <div className="rounded-3xl border border-border bg-card p-4 backdrop-blur">
+      <div className="mb-3 flex items-center gap-2 text-primary/80">
         <Icon className="size-4" />
         <span className="text-xs font-semibold uppercase tracking-[0.22em]">
           {label}
         </span>
       </div>
-      <p className="text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-sm text-slate-300/70">{caption}</p>
+      <p className="text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground/70">{caption}</p>
     </div>
   );
 }
@@ -894,11 +894,11 @@ function CrewCard({
   names: string[];
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.26em] text-sky-200/70">
+    <div className="rounded-3xl border border-border bg-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary/70">
         {eyebrow}
       </p>
-      <p className="mt-2 text-base font-semibold text-white">
+      <p className="mt-2 text-base font-semibold text-foreground">
         {names.length ? listFormatter.format(names.slice(0, 3)) : fallback}
       </p>
     </div>
@@ -918,11 +918,11 @@ function GlassSection({
 }) {
   return (
     <section className={cn(pageShell, className)}>
-      <div className="border-b border-white/10 px-5 py-4 md:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.26em] text-sky-200/70">
+      <div className="border-b border-border px-5 py-4 md:px-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.26em] text-primary/70">
           {eyebrow}
         </p>
-        <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
+        <h2 className="mt-1 text-xl font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-5 md:p-6">{children}</div>
     </section>
@@ -931,11 +931,11 @@ function GlassSection({
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+    <div className="rounded-2xl border border-border bg-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-sm leading-7 text-slate-100">{value}</p>
+      <p className="mt-2 text-sm leading-7 text-foreground">{value}</p>
     </div>
   );
 }
@@ -953,8 +953,8 @@ function CastCard({
   const profileUrl = tmdbImage(member.profile_path, "w185");
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-black/20 p-3">
-      <div className="relative size-14 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900">
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted p-3">
+      <div className="relative size-14 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-muted-foreground/30 to-background">
         {profileUrl ? (
           <Image
             src={profileUrl}
@@ -964,7 +964,7 @@ function CastCard({
             sizes="56px"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-200">
+          <div className="flex h-full items-center justify-center text-sm font-semibold text-foreground">
             {member.name
               .split(" ")
               .slice(0, 2)
@@ -975,8 +975,8 @@ function CastCard({
       </div>
 
       <div className="min-w-0">
-        <p className="truncate font-semibold text-white">{member.name}</p>
-        <p className="truncate text-sm text-slate-300/80">
+        <p className="truncate font-semibold text-foreground">{member.name}</p>
+        <p className="truncate text-sm text-muted-foreground/80">
           {member.character || "Role unavailable"}
         </p>
       </div>
@@ -1004,7 +1004,7 @@ function PosterRail({
           >
             <div
               className={cn(
-                "relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.05] transition duration-300 group-hover:-translate-y-1 group-hover:border-sky-200/30",
+                "relative aspect-[2/3] overflow-hidden rounded-2xl border border-border bg-muted/50 transition duration-300 group-hover:-translate-y-1 group-hover:border-sky-200/30",
                 highlightId === item.id && "border-sky-300/70 ring-2 ring-sky-300/25",
               )}
             >
@@ -1017,17 +1017,17 @@ function PosterRail({
                   sizes="170px"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center p-4 text-center text-sm font-medium text-slate-200">
+                <div className="flex h-full items-center justify-center p-4 text-center text-sm font-medium text-foreground">
                   {item.title}
                 </div>
               )}
             </div>
 
             <div className="mt-3 px-1">
-              <p className="line-clamp-2 font-semibold text-white transition group-hover:text-sky-100">
+              <p className="line-clamp-2 font-semibold text-foreground transition group-hover:text-sky-100">
                 {item.title}
               </p>
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <span>{item.release_date?.slice(0, 4) || "TBA"}</span>
                 {item.vote_average ? (
                   <span className="inline-flex items-center gap-1">
@@ -1046,11 +1046,11 @@ function PosterRail({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/20 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+    <div className="rounded-2xl border border-border bg-muted p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -1064,8 +1064,8 @@ function SidebarRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <span className="min-w-0 text-slate-400">{label}</span>
-      <span className="text-right text-slate-100">{children}</span>
+      <span className="min-w-0 text-muted-foreground">{label}</span>
+      <span className="text-right text-foreground">{children}</span>
     </div>
   );
 }
@@ -1084,7 +1084,7 @@ function CollectionCard({
 
   return (
     <GlassSection eyebrow="Franchise" title={collection.name}>
-      <p className="text-sm leading-7 text-slate-300/80">
+      <p className="text-sm leading-7 text-muted-foreground/80">
         {collection.overview || "A larger film collection connected to this title."}
       </p>
 
@@ -1094,15 +1094,15 @@ function CollectionCard({
             key={item.id}
             href={`/movies/${item.id}`}
             className={cn(
-              "flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-black/20 px-3 py-3 text-sm transition hover:border-sky-200/30 hover:bg-black/30",
+              "flex items-center justify-between gap-3 rounded-2xl border border-border bg-muted px-3 py-3 text-sm transition hover:border-sky-200/30 hover:bg-muted/80",
               item.id === currentMovieId && "border-sky-300/50 bg-sky-300/10",
             )}
           >
             <div className="flex items-center gap-3">
               <ClapperboardIcon className="size-4 text-sky-100/80" />
               <div>
-                <p className="font-medium text-white">{item.title}</p>
-                <p className="text-xs text-slate-400">
+                <p className="font-medium text-foreground">{item.title}</p>
+                <p className="text-xs text-muted-foreground">
                   {item.release_date?.slice(0, 4) || "TBA"}
                 </p>
               </div>

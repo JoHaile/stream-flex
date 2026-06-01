@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { getTVSeasonDetails } from "@/utils/tmdb";
 import {
@@ -55,6 +55,9 @@ export default function EpisodeList({
   const [selectedSeason, setSelectedSeason] = useState(initialSeason);
   const [loadedEpisodes, setLoadedEpisodes] = useState<Episode[]>(initialEpisodes);
   const [loading, setLoading] = useState(false);
+  const onEpisodeSelectRef = useRef(onEpisodeSelect);
+  onEpisodeSelectRef.current = onEpisodeSelect;
+
   const episodes =
     selectedSeason === initialSeason ? initialEpisodes : loadedEpisodes;
 
@@ -73,7 +76,7 @@ export default function EpisodeList({
         if (data && data.episodes) {
           setLoadedEpisodes(data.episodes);
           if (data.episodes[0]) {
-            onEpisodeSelect?.(
+            onEpisodeSelectRef.current?.(
               selectedSeason,
               data.episodes[0].episode_number,
               data.episodes[0],
@@ -88,7 +91,7 @@ export default function EpisodeList({
     };
 
     fetchSeason();
-  }, [selectedSeason, seriesId, initialSeason, initialEpisodes, onEpisodeSelect]);
+  }, [selectedSeason, seriesId, initialSeason, initialEpisodes]);
 
   const handleSeasonChange = (value: string | null) => {
     if (value) {
@@ -109,10 +112,10 @@ export default function EpisodeList({
           value={String(selectedSeason)}
           onValueChange={handleSeasonChange}
         >
-          <SelectTrigger className="min-w-[130px] border-white/10 bg-black/20 text-slate-100 hover:bg-black/30">
+          <SelectTrigger className="min-w-[130px] border-border bg-muted text-foreground hover:bg-accent">
             <SelectValue placeholder="Select season" />
           </SelectTrigger>
-          <SelectContent className="border border-white/10 bg-[#0b1524] text-slate-100">
+          <SelectContent className="border border-border bg-card text-foreground">
             {filteredSeasons.map((season) => (
               <SelectItem
                 key={season.id}
@@ -152,7 +155,7 @@ export default function EpisodeList({
               className={`flex w-full gap-3 rounded-2xl border p-3 text-left transition ${
                 isActive(ep)
                   ? "border-sky-300/40 bg-sky-300/10"
-                  : "border-white/[0.08] bg-black/20 hover:border-white/[0.14] hover:bg-white/[0.04]"
+                  : "border-border bg-muted hover:border-border hover:bg-accent/50"
               }`}
             >
               {/* Episode thumbnail */}
@@ -171,10 +174,10 @@ export default function EpisodeList({
                   </div>
                 )}
                 {isActive(ep) && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-background/40 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full bg-foreground/90 flex items-center justify-center">
                       <PlayIcon
-                        className="w-3.5 h-3.5 text-black ml-0.5"
+                        className="w-3.5 h-3.5 text-background ml-0.5"
                         fill="currentColor"
                       />
                     </div>
@@ -184,16 +187,16 @@ export default function EpisodeList({
 
               {/* Episode info */}
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-slate-400">
+                <span className="text-xs font-medium text-muted-foreground">
                   Episode {ep.episode_number}
                 </span>
-                <h4 className="mt-0.5 line-clamp-1 text-sm font-semibold leading-tight text-slate-100">
+                <h4 className="mt-0.5 line-clamp-1 text-sm font-semibold leading-tight text-foreground">
                   {ep.name}
                 </h4>
                 {ep.runtime && (
                   <div className="flex items-center gap-1 mt-1">
-                    <ClockIcon className="h-3 w-3 text-slate-500" />
-                    <span className="text-xs text-slate-400">
+                    <ClockIcon className="h-3 w-3 text-muted-foreground/50" />
+                    <span className="text-xs text-muted-foreground">
                       {ep.runtime}m
                     </span>
                   </div>
