@@ -113,7 +113,7 @@ export default function MovieDetailClient({
     .slice(0, 10);
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white pt-16">
       <section className="relative h-[80vh] min-h-[500px] w-full overflow-hidden">
         {heroBackdrop ? (
           <Image

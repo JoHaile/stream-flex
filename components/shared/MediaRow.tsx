@@ -2,10 +2,9 @@
 
 import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
 import MediaCard from "./MediaCard";
 
-// Common TMDB genre mappings
 const movieGenres: Record<number, string> = {
   28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
   99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
@@ -99,63 +98,56 @@ export default function MediaRow({
 
   return (
     <section className="relative">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4 px-1">
-        <h2 className="text-lg md:text-xl font-bold tracking-tight">
+        <h2 className="text-lg md:text-xl font-bold tracking-tight text-white">
           {title}
         </h2>
-        {seeAllHref && (
-          <Link
-            href={seeAllHref}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium"
-          >
-            See All
-          </Link>
-        )}
-      </div>
 
-      {/* Scroll container */}
-      <div className="relative group/row">
-        {/* Left arrow */}
-        {canScrollLeft && (
+        <div className="flex items-center gap-2">
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-0 bottom-12 z-10 w-10 flex items-center justify-center bg-gradient-to-r from-white/90 to-transparent opacity-0 group-hover/row:opacity-100 transition-opacity"
-            aria-label="Scroll left"
+            disabled={!canScrollLeft}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronLeftIcon className="w-5 h-5" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
-        )}
-
-        {/* Right arrow */}
-        {canScrollRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-0 bottom-12 z-10 w-10 flex items-center justify-center bg-gradient-to-l from-white/90 to-transparent opacity-0 group-hover/row:opacity-100 transition-opacity"
-            aria-label="Scroll right"
+            disabled={!canScrollRight}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronRightIcon className="w-5 h-5" />
+            <ChevronRight className="h-4 w-4" />
           </button>
-        )}
 
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 scroll-smooth"
-        >
-          {items.map((item) => (
-            <MediaCard
-              key={item.id}
-              id={item.id}
-              title={item.title || item.name || "Untitled"}
-              posterPath={item.poster_path || null}
-              year={getYear(item)}
-              mediaType={getMediaType(item)}
-              genreName={getGenreName(item)}
-              voteAverage={item.vote_average}
-              seasonCount={item.number_of_seasons}
-            />
-          ))}
+          {seeAllHref && (
+            <Link
+              href={seeAllHref}
+              className="inline-flex items-center gap-1.5 rounded bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90 transition"
+            >
+              See All
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
+      </div>
+
+      <div
+        ref={scrollRef}
+        className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 scroll-smooth"
+      >
+        {items.map((item) => (
+          <MediaCard
+            key={item.id}
+            id={item.id}
+            title={item.title || item.name || "Untitled"}
+            posterPath={item.poster_path || null}
+            year={getYear(item)}
+            mediaType={getMediaType(item)}
+            genreName={getGenreName(item)}
+            voteAverage={item.vote_average}
+            seasonCount={item.number_of_seasons}
+          />
+        ))}
       </div>
     </section>
   );

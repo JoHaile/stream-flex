@@ -26,7 +26,9 @@ function NavSearch() {
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -72,9 +74,7 @@ function NavSearch() {
     setQuery("");
     setOpen(false);
     router.push(
-      item.media_type === "tv"
-        ? `/tv-series/${item.id}`
-        : `/movies/${item.id}`,
+      item.media_type === "tv" ? `/tv-series/${item.id}` : `/movies/${item.id}`,
     );
   };
 
@@ -176,18 +176,14 @@ const NavLinks = ({
     >
       {links.map((link) => {
         const isActive =
-          link.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(link.href);
+          link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
 
         const linkContent = (
           <Link
             href={link.href}
             className={`text-sm font-medium transition-colors block ${
               isMobile ? "py-2 px-4 rounded-lg" : ""
-            } ${
-              isActive ? "text-white" : "text-zinc-400 hover:text-white"
-            }`}
+            } ${isActive ? "text-white" : "text-zinc-400 hover:text-white"}`}
           >
             {link.label}
             {isActive && (
@@ -224,14 +220,14 @@ const NavActions = ({
   return (
     <div
       className={`flex ${
-        isMobile
-          ? "flex-col gap-4 items-start"
-          : "flex-row items-center gap-3"
+        isMobile ? "flex-col gap-4 items-start" : "flex-row items-center gap-3"
       } ${className}`}
     >
       <button className="p-1.5 rounded-full hover:bg-zinc-800 transition-colors flex items-center gap-2">
         <BellIcon className="w-4 h-4 text-zinc-400" />
-        {isMobile && <span className="text-sm text-zinc-400">Notifications</span>}
+        {isMobile && (
+          <span className="text-sm text-zinc-400">Notifications</span>
+        )}
       </button>
       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 ring-2 ring-white shadow-sm" />
     </div>
@@ -240,19 +236,33 @@ const NavActions = ({
 
 function NavBar() {
   const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const links = [
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies" },
-    { href: "/tv-series", label: "TV Series" },
+    { href: "/tv-series", label: "Series" },
   ];
 
   return (
-    <div className="w-full relative py-3 px-4 z-50">
-      <div className="flex justify-between items-center py-3 px-6 border border-zinc-800 max-w-5xl mx-auto rounded-full bg-black/95 backdrop-blur-md shadow-sm">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-black/90 backdrop-blur-md shadow-lg shadow-black/20"
+          : "bg-black/30 backdrop-blur-sm"
+      }`}
+    >
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link
           href="/"
-          className="text-lg font-black tracking-tight text-white hover:opacity-80 transition-opacity"
+          className="text-xl font-black tracking-tight text-white hover:opacity-80 transition-opacity"
         >
           StreamFlix
         </Link>
@@ -301,7 +311,7 @@ function NavBar() {
           </Drawer>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
 

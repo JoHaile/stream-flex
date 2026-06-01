@@ -57,7 +57,7 @@ export default async function MoviesPage({ searchParams }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white pt-16">
       {featured ? (
         <section className="relative h-[85vh] min-h-[520px] w-full overflow-hidden">
           {featuredBackdrop ? (
@@ -74,7 +74,7 @@ export default async function MoviesPage({ searchParams }: Props) {
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
 
-          <div className="absolute bottom-0 left-0 right-0 px-6 pb-16 md:px-12 lg:px-16">
+          <div className="absolute bottom-0 left-0 right-0 px-6 pb-16">
             <div className="mx-auto max-w-7xl">
               <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-red-500">
                 StreamFlix Movies
@@ -132,7 +132,7 @@ export default async function MoviesPage({ searchParams }: Props) {
       ) : null}
 
       <main className="mx-auto max-w-7xl px-6 pb-16">
-        <div className="-mt-16 relative z-10 mb-8 rounded-lg bg-zinc-900 p-5 shadow-2xl">
+        <div className="relative z-10 mb-8 rounded-lg bg-zinc-900/60 backdrop-blur-xl ring-1 ring-zinc-800 p-5">
           <MoviesControls
             defaultGenre={query.genre}
             defaultSort={query.sort}

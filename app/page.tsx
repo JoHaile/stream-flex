@@ -30,7 +30,7 @@ export default async function HomePage() {
   const featuredType = featured?.media_type === "tv" ? "TV Series" : "Movie";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pt-16">
       {featured ? (
         <section className="relative h-[480px] overflow-hidden md:h-[540px]">
           {featuredBackdrop ? (
