@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import SearchBar from "@/components/shared/SearchBar";
 import type { CatalogSort, SelectOption } from "@/utils/catalog";
 
 type Props = {
@@ -60,16 +59,13 @@ export default function MoviesControls({
     currentGenre || currentSort !== "default" || currentYear || currentAvailability;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <SearchBar />
-        <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap">
-          {totalResults.toLocaleString()} movies
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap">
+            {totalResults.toLocaleString()} movies
+          </span>
+
           <div className="relative">
             <select
               value={currentGenre || "all"}
@@ -125,7 +121,7 @@ export default function MoviesControls({
           ) : null}
         </div>
 
-        <div className="relative ml-auto">
+        <div className="relative">
           <select
             value={currentSort}
             onChange={(e) => updateQuery("sort", e.target.value)}
