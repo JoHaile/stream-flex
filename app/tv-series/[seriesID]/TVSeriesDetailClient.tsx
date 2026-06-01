@@ -113,6 +113,7 @@ export default function TVSeriesDetailClient({
     initialEpisodes[0] ?? null,
   );
   const [showPlayer, setShowPlayer] = useState(false);
+  const [trailerOpen, setTrailerOpen] = useState(false);
 
   const relatedRowRef = useRef<HTMLDivElement>(null);
 
@@ -237,14 +238,12 @@ export default function TVSeriesDetailClient({
               </button>
 
               {trailer ? (
-                <a
-                  href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => setTrailerOpen(true)}
                   className="inline-flex items-center gap-2 rounded bg-white/20 px-8 py-2.5 text-sm font-semibold text-white hover:bg-white/30 transition backdrop-blur-sm"
                 >
                   Trailer
-                </a>
+                </button>
               ) : null}
             </div>
 
@@ -263,37 +262,48 @@ export default function TVSeriesDetailClient({
 
       <main className="mx-auto max-w-7xl px-6 pb-16">
         {showPlayer ? (
-          <section className="-mt-20 relative z-10 mb-10 overflow-hidden rounded-lg bg-black shadow-2xl">
-            <div className="relative aspect-video w-full">
-              <iframe
-                src={getEpisodeEmbedUrl(
-                  seriesId,
-                  currentEpisode.season,
-                  currentEpisode.episode,
-                )}
-                title={seriesData.name || "TV series player"}
-                className="absolute inset-0 h-full w-full border-none"
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-            <div className="flex items-center justify-between bg-zinc-900 px-5 py-3">
-              <div>
-                <p className="text-xs font-medium text-zinc-400">Now Playing</p>
-                <p className="text-sm font-semibold text-white">
-                  {currentEpisodeData?.name
-                    ? `S${currentEpisode.season}:E${currentEpisode.episode} · ${currentEpisodeData.name}`
-                    : `${seriesData.name}`}
-                </p>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowPlayer(false)}
+          >
+            <div className="relative w-full max-w-5xl mx-4">
+              <button
+                onClick={() => setShowPlayer(false)}
+                className="absolute -top-10 right-0 text-sm font-medium text-zinc-400 hover:text-white transition"
+              >
+                Close
+              </button>
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl">
+                <iframe
+                  src={getEpisodeEmbedUrl(
+                    seriesId,
+                    currentEpisode.season,
+                    currentEpisode.episode,
+                  )}
+                  title={seriesData.name || "TV series player"}
+                  className="absolute inset-0 h-full w-full border-none"
+                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
               </div>
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                {runtime ? <span>{formatRuntime(runtime)}</span> : null}
-                {currentEpisodeData?.air_date ? (
-                  <span>{formatDate(currentEpisodeData.air_date)}</span>
-                ) : null}
+              <div className="mt-2 flex items-center justify-between px-1">
+                <div>
+                  <p className="text-xs font-medium text-zinc-400">Now Playing</p>
+                  <p className="text-sm font-semibold text-white">
+                    {currentEpisodeData?.name
+                      ? `S${currentEpisode.season}:E${currentEpisode.episode} · ${currentEpisodeData.name}`
+                      : `${seriesData.name}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  {runtime ? <span>{formatRuntime(runtime)}</span> : null}
+                  {currentEpisodeData?.air_date ? (
+                    <span>{formatDate(currentEpisodeData.air_date)}</span>
+                  ) : null}
+                </div>
               </div>
             </div>
-          </section>
+          </div>
         ) : null}
 
         {cast.length ? (
@@ -453,6 +463,31 @@ export default function TVSeriesDetailClient({
           </section>
         ) : null}
       </main>
+
+      {trailerOpen && trailer ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setTrailerOpen(false)}
+        >
+          <div className="relative w-full max-w-4xl mx-4">
+            <button
+              onClick={() => setTrailerOpen(false)}
+              className="absolute -top-10 right-0 text-sm font-medium text-zinc-400 hover:text-white transition"
+            >
+              Close
+            </button>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl">
+              <iframe
+                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
+                title={`${seriesData.name} trailer`}
+                className="absolute inset-0 h-full w-full border-none"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

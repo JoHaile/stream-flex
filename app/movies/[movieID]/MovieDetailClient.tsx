@@ -79,6 +79,7 @@ export default function MovieDetailClient({
   relatedTitles,
 }: MovieDetailClientProps) {
   const [showPlayer, setShowPlayer] = useState(false);
+  const [trailerOpen, setTrailerOpen] = useState(false);
   const relatedRowRef = useRef<HTMLDivElement>(null);
 
   const scrollRelated = (direction: "left" | "right") => {
@@ -201,14 +202,12 @@ export default function MovieDetailClient({
               </button>
 
               {trailer ? (
-                <a
-                  href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => setTrailerOpen(true)}
                   className="inline-flex items-center gap-2 rounded bg-white/20 px-8 py-2.5 text-sm font-semibold text-white hover:bg-white/30 transition backdrop-blur-sm"
                 >
                   Trailer
-                </a>
+                </button>
               ) : null}
             </div>
 
@@ -401,6 +400,31 @@ export default function MovieDetailClient({
           </section>
         ) : null}
       </main>
+
+      {trailerOpen && trailer ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setTrailerOpen(false)}
+        >
+          <div className="relative w-full max-w-4xl mx-4">
+            <button
+              onClick={() => setTrailerOpen(false)}
+              className="absolute -top-10 right-0 text-sm font-medium text-zinc-400 hover:text-white transition"
+            >
+              Close
+            </button>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl">
+              <iframe
+                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
+                title={`${movie.title} trailer`}
+                className="absolute inset-0 h-full w-full border-none"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
