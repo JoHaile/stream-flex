@@ -187,6 +187,7 @@ export default function TVSeriesDetailClient({
   );
   const [showPlayer, setShowPlayer] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
   const relatedRowRef = useRef<HTMLDivElement>(null);
   const stillsRowRef = useRef<HTMLDivElement>(null);
@@ -541,18 +542,24 @@ export default function TVSeriesDetailClient({
                       const url = tmdbImage(img.file_path, "w780");
                       if (!url) return null;
                       return (
-                        <div
+                        <button
                           key={i}
-                          className="relative aspect-video h-28 flex-shrink-0 overflow-hidden rounded-md bg-zinc-800"
+                          onClick={() => setGalleryIndex(i)}
+                          className="relative aspect-video h-28 flex-shrink-0 overflow-hidden rounded-md bg-zinc-800 group"
                         >
                           <Image
                             src={url}
                             alt={`${seriesData.name} still`}
                             fill
-                            className="object-cover"
+                            className="object-cover transition duration-300 group-hover:scale-105"
                             sizes="180px"
                           />
-                        </div>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
+                            <div className="h-10 w-10 rounded-full border-2 border-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                              <ChevronRight className="ml-0.5 h-4 w-4 text-white" />
+                            </div>
+                          </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -904,6 +911,52 @@ export default function TVSeriesDetailClient({
           </section>
         ) : null}
       </main>
+
+      {galleryIndex !== null && backdrops[galleryIndex] ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
+          onClick={() => setGalleryIndex(null)}
+        >
+          <button
+            onClick={() => setGalleryIndex(null)}
+            className="absolute top-4 right-4 z-10 text-sm font-medium text-zinc-400 hover:text-white transition"
+          >
+            Close
+          </button>
+          <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs text-zinc-500">
+            {galleryIndex + 1} / {backdrops.length}
+          </span>
+          {galleryIndex > 0 ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setGalleryIndex(galleryIndex - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition backdrop-blur-sm"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          ) : null}
+          {galleryIndex < backdrops.length - 1 ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setGalleryIndex(galleryIndex + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition backdrop-blur-sm"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          ) : null}
+          <div
+            className="relative h-full w-full max-h-[85vh] max-w-[95vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={tmdbImage(backdrops[galleryIndex].file_path, "w1280") ?? ""}
+              alt={`${seriesData.name} still ${galleryIndex + 1}`}
+              fill
+              className="object-contain"
+              sizes="95vw"
+              priority
+            />
+          </div>
+        </div>
+      ) : null}
 
       {trailerOpen && trailer ? (
         <div
