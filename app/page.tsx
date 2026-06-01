@@ -8,7 +8,7 @@ import { InfoIcon, PlayIcon, StarIcon } from "lucide-react";
 
 export default async function HomePage() {
   const [trendingData, popularMoviesData, topRatedTVData] = await Promise.all([
-    getFeedSection({ mediaType: "all", section: "trending" }),
+    getFeedSection({ mediaType: "movie", section: "trending" }),
     getFeedSection({ mediaType: "movie", section: "popular" }),
     getFeedSection({ mediaType: "tv", section: "top-rated" }),
   ]);
