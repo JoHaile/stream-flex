@@ -41,6 +41,7 @@ export interface CatalogQueryState {
   sort: CatalogSort;
   type: CatalogMediaType;
   year: string;
+  availability: string;
 }
 
 export interface SelectOption {
@@ -130,6 +131,7 @@ export function parseCatalogQuery(
   const requestedGenre = getFirstValue(searchParams.genre);
   const requestedYear = getFirstValue(searchParams.year);
   const requestedSort = getFirstValue(searchParams.sort);
+  const requestedAvailability = getFirstValue(searchParams.availability);
 
   return {
     genre: /^\d+$/.test(requestedGenre ?? "") ? requestedGenre ?? "" : "",
@@ -137,6 +139,10 @@ export function parseCatalogQuery(
     sort: isValidSort(requestedSort) ? requestedSort : "default",
     type,
     year: /^\d{4}$/.test(requestedYear ?? "") ? requestedYear ?? "" : "",
+    availability:
+      requestedAvailability === "released" || requestedAvailability === "upcoming"
+        ? requestedAvailability
+        : "",
   };
 }
 
@@ -222,13 +228,27 @@ export const getCatalogPage = cache(
     page = 1,
     sort = "default",
     year,
+    availability,
   }: {
     genre?: string;
     mediaType: Exclude<CatalogMediaType, "all">;
     page?: number;
     sort?: CatalogSort;
     year?: string;
+    availability?: string;
   }) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const availabilityFilter =
+      availability === "released"
+        ? mediaType === "movie"
+          ? { "primary_release_date.lte": today }
+          : { "air_date.lte": today }
+        : availability === "upcoming"
+          ? mediaType === "movie"
+            ? { "primary_release_date.gte": today }
+            : { "air_date.gte": today }
+          : {};
+
     const data = await tmdbFetch<CatalogResponse>(`/discover/${mediaType}`, {
       include_adult: "false",
       include_video: mediaType === "movie" ? "false" : undefined,
@@ -238,6 +258,7 @@ export const getCatalogPage = cache(
       vote_count: undefined,
       "vote_count.gte": sort === "rating" ? 200 : undefined,
       with_genres: genre || undefined,
+      ...availabilityFilter,
       ...(mediaType === "movie"
         ? { primary_release_year: year || undefined }
         : { first_air_date_year: year || undefined }),
@@ -464,3 +485,49 @@ export function getSectionTitle(section: CatalogSection) {
   if (section === "popular") return "Popular";
   return "Trending";
 }
+
+export type Availability = "all" | "released" | "upcoming";
+
+export function getAvailabilityOptions(): SelectOption[] {
+  return [
+    { label: "All", value: "all" },
+    { label: "Released", value: "released" },
+    { label: "Upcoming", value: "upcoming" },
+  ];
+}
+
+export interface SearchResultItem {
+  id: number;
+  media_type: "movie" | "tv";
+  title?: string;
+  name?: string;
+  poster_path: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average?: number;
+}
+
+export interface MultiSearchResponse {
+  page: number;
+  results: SearchResultItem[];
+  total_pages: number;
+  total_results: number;
+}
+
+export const getMultiSearch = cache(
+  async ({ query, page = 1 }: { query: string; page?: number }) => {
+    if (!query.trim()) return null;
+    const data = await tmdbFetch<MultiSearchResponse>("/search/multi", {
+      include_adult: "false",
+      language: "en-US",
+      page,
+      query: query.trim(),
+    });
+    return {
+      ...data,
+      results: data.results.filter(
+        (item) => item.media_type === "movie" || item.media_type === "tv",
+      ),
+    };
+  },
+);

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  getAvailabilityOptions,
   getCatalogPage,
   getGenreOptions,
   getSortOptions,
@@ -26,13 +27,17 @@ type Props = {
 };
 
 export default async function MoviesPage({ searchParams }: Props) {
-  const query = parseCatalogQuery(await searchParams, "movie");
+  const sp = await searchParams;
+  const query = parseCatalogQuery(sp, "movie");
+  const availability =
+    typeof sp.availability === "string" ? sp.availability : "";
   const data = await getCatalogPage({
     genre: query.genre,
     mediaType: "movie",
     page: query.page,
     sort: query.sort,
     year: query.year,
+    availability: availability || undefined,
   });
 
   const featured = data.results[0];
@@ -132,11 +137,13 @@ export default async function MoviesPage({ searchParams }: Props) {
             defaultGenre={query.genre}
             defaultSort={query.sort}
             defaultYear={query.year}
+            defaultAvailability={availability}
             genreOptions={getGenreOptions("movie")}
             pathname="/movies"
             sortOptions={getSortOptions("catalog")}
             totalResults={data.total_results}
             yearOptions={getYearOptions()}
+            availabilityOptions={getAvailabilityOptions()}
           />
         </div>
 
