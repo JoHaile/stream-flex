@@ -754,6 +754,7 @@ export default function TVSeriesDetailClient({
                               src={tmdbImage(c.logo_path, "w92") ?? ""}
                               alt={c.name}
                               fill
+                              sizes="32px"
                               className="object-contain"
                             />
                           </div>
