@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import type { CatalogSort, SelectOption } from "@/utils/catalog";
+import { FilterSelect } from "@/components/shared/FilterSelect";
 
 type Props = {
   defaultGenre: string;
@@ -58,6 +59,16 @@ export default function TVSeriesControls({
   const hasActiveFilters =
     currentGenre || currentSort !== "default" || currentYear || currentAvailability;
 
+  const genreSelectOptions: SelectOption[] = [
+    { value: "all", label: "All Genres" },
+    ...genreOptions,
+  ];
+
+  const yearSelectOptions: SelectOption[] = [
+    { value: "all", label: "Any Year" },
+    ...yearOptions,
+  ];
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -66,49 +77,26 @@ export default function TVSeriesControls({
             {totalResults.toLocaleString()} series
           </span>
 
-          <div className="relative">
-            <select
-              value={currentGenre || "all"}
-              onChange={(e) => updateQuery("genre", e.target.value)}
-              className="appearance-none rounded bg-zinc-800 px-3 py-1.5 pr-8 text-xs font-medium text-zinc-200 ring-1 ring-zinc-700 focus:outline-none focus:ring-red-500 cursor-pointer"
-            >
-              <option value="all">All Genres</option>
-              {genreOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FilterSelect
+            value={currentGenre || "all"}
+            onValueChange={(value) => updateQuery("genre", value)}
+            options={genreSelectOptions}
+            ariaLabel="Filter by genre"
+          />
 
-          <div className="relative">
-            <select
-              value={currentYear || "all"}
-              onChange={(e) => updateQuery("year", e.target.value)}
-              className="appearance-none rounded bg-zinc-800 px-3 py-1.5 pr-8 text-xs font-medium text-zinc-200 ring-1 ring-zinc-700 focus:outline-none focus:ring-red-500 cursor-pointer"
-            >
-              <option value="all">Any Year</option>
-              {yearOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FilterSelect
+            value={currentYear || "all"}
+            onValueChange={(value) => updateQuery("year", value)}
+            options={yearSelectOptions}
+            ariaLabel="Filter by year"
+          />
 
-          <div className="relative">
-            <select
-              value={currentAvailability || "all"}
-              onChange={(e) => updateQuery("availability", e.target.value)}
-              className="appearance-none rounded bg-zinc-800 px-3 py-1.5 pr-8 text-xs font-medium text-zinc-200 ring-1 ring-zinc-700 focus:outline-none focus:ring-red-500 cursor-pointer"
-            >
-              {availabilityOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FilterSelect
+            value={currentAvailability || "all"}
+            onValueChange={(value) => updateQuery("availability", value)}
+            options={availabilityOptions}
+            ariaLabel="Filter by availability"
+          />
 
           {hasActiveFilters ? (
             <button
@@ -121,19 +109,12 @@ export default function TVSeriesControls({
           ) : null}
         </div>
 
-        <div className="relative">
-          <select
-            value={currentSort}
-            onChange={(e) => updateQuery("sort", e.target.value)}
-            className="appearance-none rounded bg-zinc-800 px-3 py-1.5 pr-8 text-xs font-medium text-zinc-200 ring-1 ring-zinc-700 focus:outline-none focus:ring-red-500 cursor-pointer"
-          >
-            {sortOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FilterSelect
+          value={currentSort}
+          onValueChange={(value) => updateQuery("sort", value)}
+          options={sortOptions}
+          ariaLabel="Sort results"
+        />
       </div>
     </div>
   );

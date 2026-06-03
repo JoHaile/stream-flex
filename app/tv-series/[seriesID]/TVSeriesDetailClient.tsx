@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import EpisodeList from "@/components/shared/EpisodeList";
 import type { TVEpisode, TVSeriesDetails, TMDBReview, TMDBWatchProviderResult, TMDBImageAsset, TMDBKeyword } from "@/utils/tmdb";
+import { getTVEpisodeEmbedUrl } from "@/utils/embed";
 import { ChevronLeft, ChevronRight, StarIcon, TrendingUp, Calendar } from "lucide-react";
 
 interface TVSeriesDetailClientProps {
@@ -91,7 +92,7 @@ function getRelatedTitles(series: TVSeriesDetails) {
 }
 
 function getEpisodeEmbedUrl(seriesId: string, season: number, episode: number) {
-  return `https://vsembed.ru/embed/tv/${encodeURIComponent(seriesId)}/${season}/${episode}?autoplay=1&muted=1`;
+  return getTVEpisodeEmbedUrl(seriesId, season, episode);
 }
 
 function getShowYearLabel(series: TVSeriesDetails) {

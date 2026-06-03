@@ -20,6 +20,7 @@ import type {
   TMDBWatchProviderResult,
   TMDBKeyword,
 } from "@/utils/getMovies";
+import { getMovieEmbedUrl } from "@/utils/embed";
 
 interface MovieDetailClientProps {
   movie: MovieDetails;
@@ -94,7 +95,7 @@ function getCrew(movie: MovieDetails) {
 }
 
 function getEmbedUrl(id: string) {
-  return `https://vsembed.ru/embed/movie/${encodeURIComponent(id)}/?autoplay=1&muted=1`;
+  return getMovieEmbedUrl(id);
 }
 
 function getUsProviders(
