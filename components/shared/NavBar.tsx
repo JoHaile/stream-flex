@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { SearchIcon, BellIcon, Menu, XIcon } from "lucide-react";
+import { BellIcon, Menu, XIcon } from "lucide-react";
 import {
   Drawer,
   DrawerTrigger,
@@ -14,6 +13,8 @@ import {
   DrawerClose,
 } from "@/components/ui/drawer";
 import type { SearchResultItem } from "@/utils/catalog";
+import Image from "next/image";
+import SearchCommand from "@/components/shared/SearchCommand";
 
 function tmdbImage(path: string | null | undefined, size = "w92") {
   if (!path) return null;
@@ -171,7 +172,7 @@ const NavLinks = ({
   return (
     <ul
       className={`flex ${
-        isMobile ? "flex-col gap-4" : "flex-row items-center gap-6"
+        isMobile ? "flex-col gap-1" : "flex-row items-center gap-6"
       } ${className}`}
     >
       {links.map((link) => {
@@ -182,7 +183,9 @@ const NavLinks = ({
           <Link
             href={link.href}
             className={`text-sm font-medium transition-colors block ${
-              isMobile ? "py-2 px-4 rounded-lg" : ""
+              isMobile
+                ? "py-2.5 px-3 rounded-lg hover:bg-zinc-800"
+                : ""
             } ${isActive ? "text-white" : "text-zinc-400 hover:text-white"}`}
           >
             {link.label}
@@ -220,16 +223,25 @@ const NavActions = ({
   return (
     <div
       className={`flex ${
-        isMobile ? "flex-col gap-4 items-start" : "flex-row items-center gap-3"
+        isMobile
+          ? "flex-row items-center justify-between w-full pt-2"
+          : "flex-row items-center gap-3"
       } ${className}`}
     >
-      <button className="p-1.5 rounded-full hover:bg-zinc-800 transition-colors flex items-center gap-2">
-        <BellIcon className="w-4 h-4 text-zinc-400" />
-        {isMobile && (
-          <span className="text-sm text-zinc-400">Notifications</span>
-        )}
-      </button>
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 ring-2 ring-white shadow-sm" />
+      {isMobile ? (
+        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          Account
+        </span>
+      ) : null}
+      <div className="flex items-center gap-3">
+        <button className="p-1.5 rounded-full hover:bg-zinc-800 transition-colors flex items-center gap-2">
+          <BellIcon className="w-4 h-4 text-zinc-400" />
+          {isMobile && (
+            <span className="text-sm text-zinc-300">Notifications</span>
+          )}
+        </button>
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 ring-2 ring-white shadow-sm" />
+      </div>
     </div>
   );
 };
@@ -259,7 +271,7 @@ function NavBar() {
           : "bg-black/30 backdrop-blur-sm"
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
           className="text-xl font-black tracking-tight text-white hover:opacity-80 transition-opacity"
@@ -276,10 +288,14 @@ function NavBar() {
           <NavActions />
         </div>
 
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-1">
+          <SearchCommand triggerClassName="p-2 rounded-full hover:bg-zinc-800 transition-colors" />
           <Drawer>
             <DrawerTrigger asChild>
-              <button className="p-1.5 rounded-full hover:bg-zinc-800 transition-colors">
+              <button
+                className="p-2 rounded-full hover:bg-zinc-800 transition-colors"
+                aria-label="Open menu"
+              >
                 <Menu className="w-5 h-5 text-zinc-400" />
               </button>
             </DrawerTrigger>
@@ -287,25 +303,10 @@ function NavBar() {
               <DrawerHeader className="text-left">
                 <DrawerTitle className="text-white">Menu</DrawerTitle>
               </DrawerHeader>
-              <div className="p-4 flex flex-col gap-6">
-                <div className="flex items-center gap-2 rounded bg-zinc-800 px-3 py-2">
-                  <SearchIcon className="h-4 w-4 text-zinc-500 flex-shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Search movies & TV series..."
-                    className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none"
-                  />
-                </div>
+              <div className="flex flex-col gap-6 p-4 pt-0">
                 <NavLinks pathname={pathname} links={links} isMobile />
-                <hr className="border-zinc-800" />
+                <div className="h-px bg-zinc-800" />
                 <NavActions isMobile />
-              </div>
-              <div className="p-4 flex justify-end">
-                <DrawerClose asChild>
-                  <button className="text-xs font-medium text-zinc-400 hover:text-white transition-colors">
-                    Close
-                  </button>
-                </DrawerClose>
               </div>
             </DrawerContent>
           </Drawer>
