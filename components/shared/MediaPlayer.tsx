@@ -95,7 +95,7 @@ export default function MediaPlayer({
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl landscape:h-full landscape:max-h-screen landscape:rounded-none">
           <button
             onClick={onClose}
-            className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
+            className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-red-500"
           >
             <XIcon className="h-3.5 w-3.5" />
             Close

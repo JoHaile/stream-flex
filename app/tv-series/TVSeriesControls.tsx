@@ -71,13 +71,14 @@ export default function TVSeriesControls({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap pb-[3px]">
             {totalResults.toLocaleString()} series
           </span>
 
           <FilterSelect
+            label="Genre"
             value={currentGenre || "all"}
             onValueChange={(value) => updateQuery("genre", value)}
             options={genreSelectOptions}
@@ -85,6 +86,7 @@ export default function TVSeriesControls({
           />
 
           <FilterSelect
+            label="Year"
             value={currentYear || "all"}
             onValueChange={(value) => updateQuery("year", value)}
             options={yearSelectOptions}
@@ -92,6 +94,7 @@ export default function TVSeriesControls({
           />
 
           <FilterSelect
+            label="Availability"
             value={currentAvailability || "all"}
             onValueChange={(value) => updateQuery("availability", value)}
             options={availabilityOptions}
@@ -102,7 +105,7 @@ export default function TVSeriesControls({
             <button
               onClick={resetFilters}
               disabled={isPending}
-              className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-zinc-700 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50"
+              className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-zinc-700 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50 mb-[3px]"
             >
               Reset
             </button>
@@ -110,6 +113,7 @@ export default function TVSeriesControls({
         </div>
 
         <FilterSelect
+          label="Sort"
           value={currentSort}
           onValueChange={(value) => updateQuery("sort", value)}
           options={sortOptions}

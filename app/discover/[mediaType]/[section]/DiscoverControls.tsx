@@ -81,52 +81,54 @@ export default function DiscoverControls({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap">
-            {typeLabel}
-          </span>
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+        <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap pb-[3px]">
+          {typeLabel}
+        </span>
 
-          {mediaTypeOptions?.length ? (
-            <FilterSelect
-              value={currentType}
-              onValueChange={(value) => updateQuery("type", value)}
-              options={mediaTypeOptions}
-              ariaLabel="Filter by type"
-            />
-          ) : null}
-
+        {mediaTypeOptions?.length ? (
           <FilterSelect
-            value={currentSort}
-            onValueChange={(value) => updateQuery("sort", value)}
-            options={sortOptions}
-            ariaLabel="Sort results"
+            label="Type"
+            value={currentType}
+            onValueChange={(value) => updateQuery("type", value)}
+            options={mediaTypeOptions}
+            ariaLabel="Filter by type"
           />
+        ) : null}
 
-          <FilterSelect
-            value={currentGenre || "all"}
-            onValueChange={(value) => updateQuery("genre", value)}
-            options={genreSelectOptions}
-            ariaLabel="Filter by genre"
-          />
+        <FilterSelect
+          label="Sort"
+          value={currentSort}
+          onValueChange={(value) => updateQuery("sort", value)}
+          options={sortOptions}
+          ariaLabel="Sort results"
+        />
 
-          <FilterSelect
-            value={currentYear || "all"}
-            onValueChange={(value) => updateQuery("year", value)}
-            options={yearSelectOptions}
-            ariaLabel="Filter by year"
-          />
+        <FilterSelect
+          label="Genre"
+          value={currentGenre || "all"}
+          onValueChange={(value) => updateQuery("genre", value)}
+          options={genreSelectOptions}
+          ariaLabel="Filter by genre"
+        />
 
-          {hasActiveFilters ? (
-            <button
-              onClick={resetFilters}
-              disabled={isPending}
-              className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-zinc-700 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50"
-            >
-              Reset
-            </button>
-          ) : null}
-        </div>
+        <FilterSelect
+          label="Year"
+          value={currentYear || "all"}
+          onValueChange={(value) => updateQuery("year", value)}
+          options={yearSelectOptions}
+          ariaLabel="Filter by year"
+        />
+
+        {hasActiveFilters ? (
+          <button
+            onClick={resetFilters}
+            disabled={isPending}
+            className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-zinc-700 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50 mb-[3px]"
+          >
+            Reset
+          </button>
+        ) : null}
       </div>
     </div>
   );
