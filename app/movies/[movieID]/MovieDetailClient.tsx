@@ -21,6 +21,7 @@ import type {
   TMDBKeyword,
 } from "@/utils/getMovies";
 import { getMovieEmbedUrl } from "@/utils/embed";
+import MediaPlayer from "@/components/shared/MediaPlayer";
 
 interface MovieDetailClientProps {
   movie: MovieDetails;
@@ -334,44 +335,30 @@ export default function MovieDetailClient({
       </section>
 
       <main className="mx-auto max-w-7xl px-6 pb-16">
-        {showPlayer ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onClick={() => setShowPlayer(false)}
-          >
-            <div className="relative w-full max-w-5xl mx-4">
-              <button
-                onClick={() => setShowPlayer(false)}
-                className="absolute -top-10 right-0 text-sm font-medium text-zinc-400 hover:text-white transition"
-              >
-                Close
-              </button>
-              <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl">
-                <iframe
-                  src={getEmbedUrl(movieId)}
-                  title={movie.title || "Movie player"}
-                  className="absolute inset-0 h-full w-full border-none"
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between px-1">
-                <div>
-                  <p className="text-xs font-medium text-zinc-400">Now Playing</p>
-                  <p className="text-sm font-semibold text-white">
-                    {movie.title}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <span>{formatRuntime(movie.runtime)}</span>
-                  {movie.release_date ? (
-                    <span>{formatDate(movie.release_date)}</span>
-                  ) : null}
-                </div>
+        <MediaPlayer
+          isOpen={showPlayer}
+          onClose={() => setShowPlayer(false)}
+          title="Now Playing"
+          info={
+            <div className="flex w-full items-center justify-between">
+              <p className="text-sm font-semibold text-white">{movie.title}</p>
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <span>{formatRuntime(movie.runtime)}</span>
+                {movie.release_date ? (
+                  <span>{formatDate(movie.release_date)}</span>
+                ) : null}
               </div>
             </div>
-          </div>
-        ) : null}
+          }
+        >
+          <iframe
+            src={getEmbedUrl(movieId)}
+            title={movie.title || "Movie player"}
+            className="absolute inset-0 h-full w-full border-none"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        </MediaPlayer>
 
         {cast.length ? (
           <section className="mb-10">
@@ -900,30 +887,21 @@ export default function MovieDetailClient({
         </div>
       ) : null}
 
-      {trailerOpen && trailer ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setTrailerOpen(false)}
-        >
-          <div className="relative w-full max-w-4xl mx-4">
-            <button
-              onClick={() => setTrailerOpen(false)}
-              className="absolute -top-10 right-0 text-sm font-medium text-zinc-400 hover:text-white transition"
-            >
-              Close
-            </button>
-            <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl">
-              <iframe
-                src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
-                title={`${movie.title} trailer`}
-                className="absolute inset-0 h-full w-full border-none"
-                allow="autoplay; encrypted-media; fullscreen"
-                allowFullScreen
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MediaPlayer
+        isOpen={trailerOpen && !!trailer}
+        onClose={() => setTrailerOpen(false)}
+        title="Trailer"
+      >
+        {trailer ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
+            title={`${movie.title} trailer`}
+            className="absolute inset-0 h-full w-full border-none"
+            allow="autoplay; encrypted-media; fullscreen"
+            allowFullScreen
+          />
+        ) : null}
+      </MediaPlayer>
     </div>
   );
 }
