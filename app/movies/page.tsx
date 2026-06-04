@@ -15,6 +15,7 @@ import {
 } from "@/utils/catalog";
 import MoviesControls from "./MoviesControls";
 import { StarIcon } from "lucide-react";
+import Pagination from "@/components/shared/Pagination";
 
 export const metadata: Metadata = {
   title: "Movie Library | StreamFlix",
@@ -206,35 +207,17 @@ export default async function MoviesPage({ searchParams }: Props) {
               })}
             </div>
 
-            <div className="mt-10 flex items-center justify-center gap-2">
-              {data.total_pages > 1
-                ? Array.from({ length: Math.min(data.total_pages, 10) }, (_, i) => {
-                    const page = i + 1;
-                    const params = new URLSearchParams();
-                    if (query.genre) params.set("genre", query.genre);
-                    if (query.sort !== "default") params.set("sort", query.sort);
-                    if (query.year) params.set("year", query.year);
-                    if (page > 1) params.set("page", String(page));
-                    const href = params.toString() ? `/movies?${params}` : "/movies";
-                    const isCurrent = page === query.page;
-
-                    return (
-                      <Link
-                        key={page}
-                        href={href}
-                        scroll={false}
-                        className={`flex h-9 w-9 items-center justify-center rounded text-sm font-medium transition ${
-                          isCurrent
-                            ? "bg-red-600 text-white"
-                            : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                        }`}
-                      >
-                        {page}
-                      </Link>
-                    );
-                  })
-                : null}
-            </div>
+            <Pagination
+              currentPage={query.page}
+              pathname="/movies"
+              query={{
+                genre: query.genre || undefined,
+                sort: query.sort !== "default" ? query.sort : undefined,
+                year: query.year || undefined,
+                availability: availability || undefined,
+              }}
+              totalPages={data.total_pages}
+            />
           </>
         ) : (
           <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-6 py-16 text-center">
