@@ -380,6 +380,13 @@ export default function TVSeriesDetailClient({
               </div>
             </div>
           }
+          showEpisodes
+          seriesId={seriesId}
+          seasons={seriesData.seasons?.filter((s) => s.season_number > 0) ?? []}
+          initialEpisodes={initialEpisodes}
+          initialSeason={initialSeason}
+          currentEpisode={currentEpisode}
+          onSelectEpisode={handleEpisodeSelect}
         >
           <iframe
             src={getEpisodeEmbedUrl(

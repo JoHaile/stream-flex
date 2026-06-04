@@ -1,7 +1,28 @@
 "use client";
 
-import { useEffect } from "react";
-import { XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ListIcon, XIcon } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import EpisodeList from "@/components/shared/EpisodeList";
+
+type EpisodeData = {
+  id: number;
+  name: string;
+  overview: string;
+  episode_number: number;
+  season_number: number;
+  still_path: string | null;
+  runtime: number | null;
+  air_date: string | null;
+  vote_average: number;
+};
+
+type SeasonData = {
+  id: number;
+  name: string;
+  season_number: number;
+  episode_count: number;
+};
 
 type Props = {
   isOpen: boolean;
@@ -9,6 +30,17 @@ type Props = {
   title: string;
   children: React.ReactNode;
   info?: React.ReactNode;
+  showEpisodes?: boolean;
+  seriesId?: string;
+  seasons?: SeasonData[];
+  initialEpisodes?: EpisodeData[];
+  initialSeason?: number;
+  currentEpisode?: { season: number; episode: number };
+  onSelectEpisode?: (
+    seasonNum: number,
+    episodeNum: number,
+    episode?: EpisodeData,
+  ) => void;
 };
 
 export default function MediaPlayer({
@@ -17,7 +49,16 @@ export default function MediaPlayer({
   title,
   children,
   info,
+  showEpisodes,
+  seriesId,
+  seasons,
+  initialEpisodes,
+  initialSeason,
+  currentEpisode,
+  onSelectEpisode,
 }: Props) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -33,6 +74,15 @@ export default function MediaPlayer({
 
   if (!isOpen) return null;
 
+  const handleEpisodeSelect = (
+    seasonNum: number,
+    episodeNum: number,
+    episode?: EpisodeData,
+  ) => {
+    onSelectEpisode?.(seasonNum, episodeNum, episode);
+    setSheetOpen(false);
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm landscape:bg-black landscape:backdrop-blur-none"
@@ -45,11 +95,38 @@ export default function MediaPlayer({
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black shadow-2xl landscape:h-full landscape:max-h-screen landscape:rounded-none">
           <button
             onClick={onClose}
-            className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
+            className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
           >
             <XIcon className="h-3.5 w-3.5" />
             Close
           </button>
+
+          {showEpisodes ? (
+            <button
+              onClick={() => setSheetOpen(true)}
+              className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
+            >
+              <ListIcon className="h-3.5 w-3.5" />
+              Seasons & Episodes
+            </button>
+          ) : null}
+
+          {showEpisodes ? (
+            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+              <SheetContent>
+                {seriesId && seasons ? (
+                  <EpisodeList
+                    seriesId={seriesId}
+                    seasons={seasons}
+                    initialEpisodes={initialEpisodes ?? []}
+                    initialSeason={initialSeason ?? 1}
+                    onEpisodeSelect={handleEpisodeSelect}
+                    currentEpisode={currentEpisode}
+                  />
+                ) : null}
+              </SheetContent>
+            </Sheet>
+          ) : null}
 
           {children}
 
