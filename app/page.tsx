@@ -32,7 +32,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-background pt-16">
       {featured ? (
-        <section className="relative h-[480px] overflow-hidden md:h-[540px]">
+        <section className="relative h-120 overflow-hidden md:h-135">
           {featuredBackdrop ? (
             <Image
               src={featuredBackdrop}
@@ -45,7 +45,7 @@ export default async function HomePage() {
           ) : null}
 
           <div className="hero-gradient absolute inset-0 z-10" />
-          <div className="absolute inset-x-0 bottom-0 z-10 h-40 bg-gradient-to-t from-background to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 h-40 bg-linear-to-t from-background to-transparent" />
 
           <div className="absolute inset-0 z-20 flex items-end pb-16 md:pb-20">
             <div className="mx-auto w-full max-w-7xl px-6">
