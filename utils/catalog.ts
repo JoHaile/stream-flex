@@ -4,8 +4,9 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
 export type CatalogMediaType = "movie" | "tv" | "all";
-export type CatalogSection = "trending" | "popular" | "top-rated";
+export type CatalogSection = "trending" | "popular" | "top-rated" | "latest";
 export type CatalogSort = "default" | "rating" | "newest" | "oldest" | "title";
+export type LatestMediaType = "tvshows" | "movies" | "episodes";
 
 export type SearchParamValue = string | string[] | undefined;
 export type SearchParamsRecord = Record<string, SearchParamValue>;
@@ -314,6 +315,113 @@ export const getFeedSection = cache(
   },
 );
 
+export interface LatestItemData {
+  imdb_id?: string;
+  tmdb_id?: string | number;
+  title?: string;
+  embed_url?: string;
+  embed_url_tmdb?: string;
+  quality?: string;
+  time_added?: string;
+}
+
+export interface LatestResponse {
+  result?: LatestItemData[];
+}
+
+function mapLatestToCatalogItem(
+  item: LatestItemData,
+  mediaType: CatalogMediaType,
+  index: number,
+): CatalogItem {
+  const tmdbId = Number(item.tmdb_id);
+  return {
+    id: tmdbId || -(index + 1),
+    title: item.title,
+    name: item.title,
+    poster_path: null,
+    backdrop_path: null,
+    overview: undefined,
+    release_date: item.time_added?.slice(0, 10),
+    first_air_date: item.time_added?.slice(0, 10),
+    vote_average: undefined,
+    media_type: mediaType === "all" ? undefined : mediaType,
+  };
+}
+
+function getLatestPath(mediaType: LatestMediaType, page: number) {
+  const LATEST_BASE_URL = process.env.NEXT_PUBLIC_MOVIE_DB_LATEST_URL ?? "";
+  const base = LATEST_BASE_URL.replace(/\/+$/, "");
+  return `${base}/${mediaType}/latest/page-${page}.json`;
+}
+
+export const getLatestSection = cache(
+  async ({
+    mediaType = "tvshows",
+    page = 1,
+  }: {
+    mediaType?: LatestMediaType;
+    page?: number;
+  }) => {
+    const url = getLatestPath(mediaType, page);
+
+    const response = await fetch(url, {
+      next: { revalidate: 1800 },
+    });
+
+    if (!response.ok) {
+      return {
+        page: 1,
+        results: [] as CatalogItem[],
+        total_pages: 1,
+        total_results: 0,
+      };
+    }
+
+    const json: LatestResponse = await response.json();
+    const mappedType: CatalogMediaType =
+      mediaType === "movies" ? "movie" : mediaType === "tvshows" ? "tv" : "all";
+
+    const items = (json.result ?? []).map((item, index) =>
+      mapLatestToCatalogItem(item, mappedType, index),
+    );
+
+    const withPosters = await Promise.all(
+      items.map(async (item) => {
+        if (!item.id || item.id < 0) return item;
+        try {
+          const endpoint = mappedType === "movie"
+            ? `/movie/${item.id}`
+            : `/tv/${item.id}`;
+          const data = await tmdbFetch<{ poster_path: string | null; backdrop_path: string | null; vote_average?: number }>(endpoint, { language: "en-US" });
+          return {
+            ...item,
+            poster_path: data.poster_path,
+            backdrop_path: data.backdrop_path,
+            vote_average: item.vote_average ?? data.vote_average,
+          };
+        } catch {
+          return item;
+        }
+      }),
+    );
+
+    const seen = new Set<number>();
+    const unique = withPosters.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+
+    return {
+      page,
+      results: unique,
+      total_pages: 500,
+      total_results: unique.length,
+    };
+  },
+);
+
 function getItemTitle(item: CatalogItem) {
   return item.title || item.name || "Untitled";
 }
@@ -428,7 +536,9 @@ export function getSortOptions(
         ? "Trending order"
         : context === "popular"
           ? "Popularity order"
-          : "Top rated order";
+          : context === "latest"
+            ? "Latest order"
+            : "Top rated order";
 
   return [
     { label: defaultLabel, value: "default" },
@@ -483,6 +593,7 @@ export function getPrimaryGenreLabel(
 export function getSectionTitle(section: CatalogSection) {
   if (section === "top-rated") return "Top Rated";
   if (section === "popular") return "Popular";
+  if (section === "latest") return "Latest";
   return "Trending";
 }
 

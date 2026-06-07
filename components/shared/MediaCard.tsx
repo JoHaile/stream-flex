@@ -35,13 +35,16 @@ export default function MediaCard({
       {/* Poster */}
       <div className="media-card relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-muted">
         {posterUrl ? (
-          <Image
-            src={posterUrl}
-            alt={title}
-            fill
-            sizes="(max-width: 768px) 150px, 170px"
-            className="object-cover"
-          />
+          <>
+            <div className="absolute inset-0 animate-pulse bg-muted/80 rounded-xl" />
+            <Image
+              src={posterUrl}
+              alt={title}
+              fill
+              sizes="(max-width: 768px) 150px, 170px"
+              className="object-cover"
+            />
+          </>
         ) : (
           <div className="flex h-full items-center justify-center bg-muted text-muted-foreground text-xs px-2 text-center">
             {title}

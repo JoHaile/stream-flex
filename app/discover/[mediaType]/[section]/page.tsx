@@ -7,6 +7,7 @@ import {
   applyFeedFilters,
   getFeedSection,
   getGenreOptions,
+  getLatestSection,
   getMediaHref,
   getMediaTitle,
   getMediaTypeOptions,
@@ -18,6 +19,7 @@ import {
   parseCatalogQuery,
   type CatalogMediaType,
   type CatalogSection,
+  type LatestMediaType,
   type SearchParamsRecord,
 } from "@/utils/catalog";
 import { StarIcon } from "lucide-react";
@@ -33,7 +35,7 @@ function isMediaType(value: string): value is CatalogMediaType {
 }
 
 function isSection(value: string): value is CatalogSection {
-  return ["trending", "popular", "top-rated"].includes(value);
+  return ["trending", "popular", "top-rated", "latest"].includes(value);
 }
 
 function getDiscoverTitle(mediaType: CatalogMediaType, section: CatalogSection) {
@@ -101,16 +103,29 @@ export default async function DiscoverPage({ params, searchParams }: Props) {
     notFound();
   }
 
-  if (mediaType === "all" && section !== "trending") {
+  if (mediaType === "all" && section !== "trending" && section !== "latest") {
     notFound();
   }
 
   const query = parseCatalogQuery(await searchParams, mediaType);
-  const feedData = await getFeedSection({
-    mediaType,
-    page: query.page,
-    section,
-  });
+
+  const latestTypeMap: Record<string, LatestMediaType> = {
+    movie: "movies",
+    tv: "tvshows",
+    all: "tvshows",
+  };
+
+  const isLatest = section === "latest";
+  const feedData = isLatest
+    ? await getLatestSection({
+        mediaType: latestTypeMap[mediaType] ?? "tvshows",
+        page: query.page,
+      })
+    : await getFeedSection({
+        mediaType,
+        page: query.page,
+        section,
+      });
   const items = applyFeedFilters({
     items: feedData.results,
     query,
@@ -204,20 +219,22 @@ export default async function DiscoverPage({ params, searchParams }: Props) {
       ) : null}
 
       <main className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-        <div className="relative z-10 mb-8">
-          <DiscoverControls
-            defaultGenre={query.genre}
-            defaultSort={query.sort}
-            defaultYear={query.year}
-            defaultType={mediaType === "all" ? query.type : undefined}
-            genreOptions={getGenreOptions(activeTypeForGenres)}
-            mediaTypeOptions={mediaType === "all" ? getMediaTypeOptions() : undefined}
-            pathname={`/discover/${mediaType}/${section}`}
-            sortOptions={getSortOptions(section)}
-            totalResults={feedData.total_results}
-            yearOptions={getYearOptions()}
-          />
-        </div>
+        {!isLatest ? (
+          <div className="relative z-10 mb-8">
+            <DiscoverControls
+              defaultGenre={query.genre}
+              defaultSort={query.sort}
+              defaultYear={query.year}
+              defaultType={mediaType === "all" ? query.type : undefined}
+              genreOptions={getGenreOptions(activeTypeForGenres)}
+              mediaTypeOptions={mediaType === "all" ? getMediaTypeOptions() : undefined}
+              pathname={`/discover/${mediaType}/${section}`}
+              sortOptions={getSortOptions(section)}
+              totalResults={feedData.total_results}
+              yearOptions={getYearOptions()}
+            />
+          </div>
+        ) : null}
 
         {items.length ? (
           <>
