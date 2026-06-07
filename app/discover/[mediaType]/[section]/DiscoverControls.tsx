@@ -1,15 +1,11 @@
-"use client";
-
-import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import CatalogControls from "@/components/catalog/CatalogControls";
 import type { CatalogSort, SelectOption } from "@/utils/catalog";
-import { FilterSelect } from "@/components/shared/FilterSelect";
 
 type Props = {
   defaultGenre: string;
   defaultSort: CatalogSort;
-  defaultYear: string;
   defaultType?: string;
+  defaultYear: string;
   genreOptions: SelectOption[];
   mediaTypeOptions?: SelectOption[];
   pathname: string;
@@ -21,8 +17,8 @@ type Props = {
 export default function DiscoverControls({
   defaultGenre,
   defaultSort,
-  defaultYear,
   defaultType,
+  defaultYear,
   genreOptions,
   mediaTypeOptions,
   pathname,
@@ -30,106 +26,21 @@ export default function DiscoverControls({
   totalResults,
   yearOptions,
 }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-
-  const currentGenre = searchParams.get("genre") || defaultGenre;
-  const currentSort = searchParams.get("sort") || defaultSort;
-  const currentYear = searchParams.get("year") || defaultYear;
-  const currentType = searchParams.get("type") || defaultType || "all";
-
-  const updateQuery = (name: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (!value || value === "all" || (name === "sort" && value === "default")) {
-      params.delete(name);
-    } else {
-      params.set(name, value);
-    }
-
-    if (name === "type" && value !== currentType) {
-      params.delete("genre");
-    }
-
-    params.delete("page");
-    const href = params.toString() ? `${pathname}?${params}` : pathname;
-    startTransition(() => router.push(href, { scroll: false }));
-  };
-
-  const resetFilters = () => {
-    startTransition(() => router.push(pathname, { scroll: false }));
-  };
-
-  const hasActiveFilters =
-    currentGenre || currentSort !== "default" || currentYear || currentType !== "all";
-
-  const genreSelectOptions: SelectOption[] = [
-    { value: "all", label: "All Genres" },
-    ...genreOptions,
-  ];
-
-  const yearSelectOptions: SelectOption[] = [
-    { value: "all", label: "Any Year" },
-    ...yearOptions,
-  ];
-
-  const typeLabel =
-    totalResults === 1
-      ? `${totalResults.toLocaleString()} title`
-      : `${totalResults.toLocaleString()} titles`;
+  const resultNoun = totalResults === 1 ? "title" : "titles";
 
   return (
-    <div>
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <span className="text-sm font-semibold text-zinc-400 whitespace-nowrap pb-[3px]">
-          {typeLabel}
-        </span>
-
-        {mediaTypeOptions?.length ? (
-          <FilterSelect
-            label="Type"
-            value={currentType}
-            onValueChange={(value) => updateQuery("type", value)}
-            options={mediaTypeOptions}
-            ariaLabel="Filter by type"
-          />
-        ) : null}
-
-        <FilterSelect
-          label="Sort"
-          value={currentSort}
-          onValueChange={(value) => updateQuery("sort", value)}
-          options={sortOptions}
-          ariaLabel="Sort results"
-        />
-
-        <FilterSelect
-          label="Genre"
-          value={currentGenre || "all"}
-          onValueChange={(value) => updateQuery("genre", value)}
-          options={genreSelectOptions}
-          ariaLabel="Filter by genre"
-        />
-
-        <FilterSelect
-          label="Year"
-          value={currentYear || "all"}
-          onValueChange={(value) => updateQuery("year", value)}
-          options={yearSelectOptions}
-          ariaLabel="Filter by year"
-        />
-
-        {hasActiveFilters ? (
-          <button
-            onClick={resetFilters}
-            disabled={isPending}
-            className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-zinc-700 hover:bg-zinc-700 hover:text-white transition disabled:opacity-50 mb-[3px]"
-          >
-            Reset
-          </button>
-        ) : null}
-      </div>
-    </div>
+    <CatalogControls
+      defaultGenre={defaultGenre}
+      defaultSort={defaultSort}
+      defaultType={defaultType}
+      defaultYear={defaultYear}
+      genreOptions={genreOptions}
+      mediaTypeOptions={mediaTypeOptions}
+      pathname={pathname}
+      resultLabel={`${totalResults.toLocaleString()} ${resultNoun}`}
+      sortOptions={sortOptions}
+      totalResults={totalResults}
+      yearOptions={yearOptions}
+    />
   );
 }

@@ -64,7 +64,7 @@ function getDiscoverDescription(
   return `Explore ${section.replace("-", " ")} ${noun} with page-by-page browsing, server-side filters, and smarter discovery controls.`;
 }
 
-function getEyebrow(mediaType: CatalogMediaType, section: CatalogSection) {
+function getEyebrow(mediaType: CatalogMediaType) {
   if (mediaType === "movie") return "StreamFlix Movies";
   if (mediaType === "tv") return "StreamFlix Series";
   return "StreamFlix";
@@ -149,7 +149,7 @@ export default async function DiscoverPage({ params, searchParams }: Props) {
           <div className="absolute bottom-0 left-0 right-0 px-6 pb-16">
             <div className="mx-auto max-w-7xl">
               <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-red-500">
-                {getEyebrow(mediaType, section)}
+                {getEyebrow(mediaType)}
               </p>
               <h1 className="mb-3 text-4xl font-black tracking-tight md:text-5xl lg:text-7xl">
                 {featuredTitle}
@@ -203,8 +203,8 @@ export default async function DiscoverPage({ params, searchParams }: Props) {
         </section>
       ) : null}
 
-      <main className="mx-auto max-w-7xl px-6 pb-16">
-        <div className="relative z-10 mb-8 rounded-lg bg-zinc-900/60 backdrop-blur-xl ring-1 ring-zinc-800 p-5">
+      <main className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+        <div className="relative z-10 mb-8">
           <DiscoverControls
             defaultGenre={query.genre}
             defaultSort={query.sort}

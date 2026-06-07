@@ -50,12 +50,6 @@ export default async function TVSeriesPage({ searchParams }: Props) {
     ? getPrimaryGenreLabel(featured, "tv")
     : "";
   const featuredHref = featured ? getMediaHref(featured, "tv") : "#";
-  const queryRecord = {
-    genre: query.genre || undefined,
-    sort: query.sort !== "default" ? query.sort : undefined,
-    year: query.year || undefined,
-  };
-
   return (
     <div className="min-h-screen bg-black text-white pt-16">
       {featured ? (
@@ -131,8 +125,8 @@ export default async function TVSeriesPage({ searchParams }: Props) {
         </section>
       ) : null}
 
-      <main className="mx-auto max-w-7xl px-6 pb-16">
-        <div className="relative z-10 mb-8 rounded-lg bg-zinc-900/60 backdrop-blur-xl ring-1 ring-zinc-800 p-5">
+      <main className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+        <div className="relative z-10 mb-8">
           <TVSeriesControls
             defaultGenre={query.genre}
             defaultSort={query.sort}

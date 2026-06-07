@@ -191,14 +191,16 @@ export default function CatalogPage({
 
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 md:px-6 lg:px-8">
         <CatalogControls
+          defaultGenre={query.genre}
+          defaultSort={query.sort}
           defaultType={mediaType === "all" ? "all" : mediaType}
           genreOptions={genreOptions}
           mediaTypeOptions={mediaTypeOptions}
-          selectedGenre={query.genre}
-          selectedSort={query.sort}
-          selectedType={query.type}
-          selectedYear={query.year}
+          pathname={pathname}
+          resultLabel={`${totalResults.toLocaleString()} results`}
           sortOptions={sortOptions}
+          totalResults={totalResults}
+          defaultYear={query.year}
           yearOptions={yearOptions}
         />
 
