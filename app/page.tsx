@@ -7,14 +7,13 @@ import { getFeedSection, getLatestSection, getMediaHref, getSectionTitle } from 
 import { InfoIcon, PlayIcon, StarIcon } from "lucide-react";
 
 export default async function HomePage() {
-  const [trendingData, popularMoviesData, topRatedTVData, latestTVData, latestMovieData, latestEpisodesData] =
+  const [trendingData, popularMoviesData, topRatedTVData, latestTVData, latestMovieData] =
     await Promise.all([
       getFeedSection({ mediaType: "movie", section: "trending" }),
       getFeedSection({ mediaType: "movie", section: "popular" }),
       getFeedSection({ mediaType: "tv", section: "top-rated" }),
       getLatestSection({ mediaType: "tvshows", page: 1 }),
       getLatestSection({ mediaType: "movies", page: 1 }),
-      getLatestSection({ mediaType: "episodes", page: 1 }),
     ]);
 
   const trendingAll = trendingData.results;
@@ -22,7 +21,6 @@ export default async function HomePage() {
   const topRatedTV = topRatedTVData.results;
   const latestTV = latestTVData.results;
   const latestMovies = latestMovieData.results;
-  const latestEpisodes = latestEpisodesData.results;
   const featured = trendingAll[0];
 
   const featuredBackdrop = featured?.backdrop_path
@@ -142,12 +140,6 @@ export default async function HomePage() {
           items={latestTV}
           mediaType="tv"
           seeAllHref="/discover/tv/latest"
-        />
-
-        <MediaRow
-          title="Latest Episodes"
-          items={latestEpisodes}
-          seeAllHref="/discover/all/latest"
         />
       </div>
     </div>
