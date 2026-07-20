@@ -12,6 +12,10 @@ import {
   DollarSign,
   Landmark,
   Calendar,
+  Expand,
+  Film,
+  Globe2,
+  Languages,
 } from "lucide-react";
 import type {
   MovieDetails,
@@ -20,7 +24,12 @@ import type {
   TMDBWatchProviderResult,
   TMDBKeyword,
 } from "@/utils/getMovies";
-import { getMovieEmbedUrl } from "@/utils/embed";
+import {
+  getMovieEmbedUrl,
+  getMovieEmbedUrlAlt,
+  SERVERS,
+  type ServerId,
+} from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
 
 interface MovieDetailClientProps {
@@ -95,7 +104,8 @@ function getCrew(movie: MovieDetails) {
   return { directors, writers };
 }
 
-function getEmbedUrl(id: string) {
+function getEmbedUrl(id: string, server: ServerId = "default") {
+  if (server === "alt") return getMovieEmbedUrlAlt(id);
   return getMovieEmbedUrl(id);
 }
 
@@ -116,19 +126,19 @@ function ReviewCard({ review }: { review: TMDBReview }) {
   const cleanContent = review.content.replace(/<\/?[^>]+(>|$)/g, "");
 
   return (
-    <div className="flex-shrink-0 w-[340px] rounded-lg border border-zinc-800 bg-zinc-900/70 p-4">
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-5 flex flex-col h-full">
       <div className="mb-3 flex items-center gap-3">
-        <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-zinc-700">
+        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-zinc-700 ring-2 ring-zinc-700">
           {avatarUrl ? (
             <Image
               src={avatarUrl}
               alt={review.author}
-              width={36}
-              height={36}
+              width={40}
+              height={40}
               className="h-full w-full object-cover"
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-xs font-bold text-zinc-400">
+            <div className="flex h-full items-center justify-center text-sm font-bold text-zinc-400">
               {review.author[0]?.toUpperCase()}
             </div>
           )}
@@ -148,14 +158,14 @@ function ReviewCard({ review }: { review: TMDBReview }) {
           </div>
         ) : null}
       </div>
-      <p className="line-clamp-4 text-xs leading-relaxed text-zinc-400">
+      <p className="text-sm leading-relaxed text-zinc-400 line-clamp-4 flex-1">
         {cleanContent}
       </p>
       <a
         href={review.url}
         target="_blank"
         rel="noreferrer"
-        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition"
+        className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-300 transition"
       >
         Read full review
         <ExternalLink className="h-3 w-3" />
@@ -173,10 +183,9 @@ export default function MovieDetailClient({
   const [showPlayer, setShowPlayer] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [activeServer, setActiveServer] = useState<ServerId>("default");
 
   const relatedRowRef = useRef<HTMLDivElement>(null);
-  const stillsRowRef = useRef<HTMLDivElement>(null);
-  const reviewsRowRef = useRef<HTMLDivElement>(null);
 
   const scrollRow = (ref: React.RefObject<HTMLDivElement | null>, direction: "left" | "right") => {
     if (!ref.current) return;
@@ -209,15 +218,17 @@ export default function MovieDetailClient({
     .sort((left, right) => left.order - right.order)
     .slice(0, 10);
 
-  const backdrops = (movie.images?.backdrops ?? []).slice(0, 12);
-  const posters = (movie.images?.posters ?? []).slice(0, 8);
+  const galleryItems = [
+    ...(movie.images?.backdrops ?? []).slice(0, 12).map((img) => ({ ...img, kind: "backdrop" })),
+    ...(movie.images?.posters ?? []).slice(0, 8).map((img) => ({ ...img, kind: "poster" })),
+  ];
   const reviews = (movie.reviews?.results ?? []).slice(0, 10);
   const usProviders = getUsProviders(movie["watch/providers"]?.results);
   const budgetFormatted = formatCurrency(movie.budget);
   const revenueFormatted = formatCurrency(movie.revenue);
   const keywords = (movie.keywords?.keywords ?? movie.keywords?.results ?? []) as TMDBKeyword[];
 
-  const hasGallery = backdrops.length > 0 || posters.length > 0;
+  const hasGallery = galleryItems.length > 0;
   const hasReviews = reviews.length > 0;
   const hasProviders = usProviders && (usProviders.flatrate?.length || usProviders.rent?.length || usProviders.buy?.length);
   const hasKeywords = keywords.length > 0;
@@ -350,9 +361,13 @@ export default function MovieDetailClient({
               </div>
             </div>
           }
+          servers={SERVERS}
+          activeServer={activeServer}
+          onServerChange={setActiveServer}
         >
           <iframe
-            src={getEmbedUrl(movieId)}
+            key={activeServer}
+            src={getEmbedUrl(movieId, activeServer)}
             title={movie.title || "Movie player"}
             className="absolute inset-0 h-full w-full border-none"
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
@@ -479,127 +494,61 @@ export default function MovieDetailClient({
         {hasGallery ? (
           <section className="mb-10 border-t border-zinc-800 pt-8">
             <h2 className="mb-4 text-xl font-bold text-white">Gallery</h2>
-            {backdrops.length ? (
-              <div className="mb-4">
-                <p className="mb-2 text-xs font-medium text-zinc-500 uppercase tracking-wider">Stills</p>
-                <div className="relative">
-                  <div
-                    ref={stillsRowRef}
-                    className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar"
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+              {galleryItems.map((img, i) => {
+                const url = tmdbImage(img.file_path, img.kind === "backdrop" ? "w780" : "w342");
+                if (!url) return null;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setGalleryIndex(i)}
+                    className={`relative overflow-hidden rounded-md bg-zinc-800 group ${
+                      img.kind === "poster" ? "aspect-[2/3]" : "aspect-video"
+                    }`}
                   >
-                    {backdrops.map((img, i) => {
-                      const url = tmdbImage(img.file_path, "w780");
-                      if (!url) return null;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setGalleryIndex(i)}
-                          className="relative aspect-video h-28 flex-shrink-0 overflow-hidden rounded-md bg-zinc-800 group"
-                        >
-                          <Image
-                            src={url}
-                            alt={`${movie.title} still`}
-                            fill
-                            className="object-cover transition duration-300 group-hover:scale-105"
-                            sizes="180px"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
-                            <div className="h-10 w-10 rounded-full border-2 border-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                              <ChevronRight className="ml-0.5 h-4 w-4 text-white" />
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {backdrops.length > 3 ? (
-                    <>
-                      <button
-                        onClick={() => scrollRow(stillsRowRef, "left")}
-                        className="absolute left-0 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-zinc-300 hover:bg-black/80 hover:text-white transition"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => scrollRow(stillsRowRef, "right")}
-                        className="absolute right-0 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-zinc-300 hover:bg-black/80 hover:text-white transition"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            {posters.length ? (
-              <div className="mt-6">
-                <p className="mb-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Posters &amp; Artwork</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                  {posters.slice(0, 8).map((img, i) => {
-                    const url = tmdbImage(img.file_path, i === 0 ? "w780" : "w342");
-                    if (!url) return null;
-                    const isFeatured = i === 0;
-                    const isBanner = i === 6 || i === 7;
-                    return (
-                      <div
-                        key={i}
-                        className={`relative overflow-hidden rounded-md bg-zinc-800 group ${
-                          isFeatured
-                            ? "col-span-2 row-span-2 md:col-span-2 md:row-span-2"
-                            : isBanner && posters.length > 6
-                              ? "col-span-2 sm:col-span-1 md:col-span-1"
-                              : ""
-                        }`}
-                      >
-                        <div className={isFeatured ? "aspect-[4/5] md:aspect-auto md:absolute md:inset-0" : "aspect-[2/3]"}>
-                          <Image
-                            src={url}
-                            alt={`${movie.title} poster`}
-                            fill
-                            className="object-cover transition duration-300 group-hover:scale-105"
-                            sizes={
-                              isFeatured
-                                ? "(max-width: 768px) 100vw, 50vw"
-                                : "(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                            }
-                          />
-                        </div>
+                    <Image
+                      src={url}
+                      alt={`${movie.title} ${img.kind}`}
+                      fill
+                      className="object-cover transition duration-300 group-hover:scale-105"
+                      sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
+                      <div className="h-10 w-10 rounded-full border-2 border-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                        <Expand className="h-4 w-4 text-white" />
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {hasKeywords ? (
+          <section className="mb-10 border-t border-zinc-800 pt-8">
+            <h2 className="mb-4 text-xl font-bold text-white">
+              Keywords <span className="text-sm font-normal text-zinc-500">({keywords.length})</span>
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {keywords.map((kw) => (
+                <span
+                  key={kw.id}
+                  className="rounded-full border border-red-500/30 bg-red-500/10 px-3.5 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 hover:border-red-500/50 transition"
+                >
+                  {kw.name}
+                </span>
+              ))}
+            </div>
           </section>
         ) : null}
 
         {hasReviews ? (
           <section className="mb-10 border-t border-zinc-800 pt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">
-                Reviews <span className="text-sm font-normal text-zinc-500">({reviews.length})</span>
-              </h2>
-              {reviews.length > 2 ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => scrollRow(reviewsRowRef, "left")}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => scrollRow(reviewsRowRef, "right")}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <div
-              ref={reviewsRowRef}
-              className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar"
-            >
+            <h2 className="mb-4 text-xl font-bold text-white">
+              Reviews <span className="text-sm font-normal text-zinc-500">({reviews.length})</span>
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {reviews.map((review) => (
                 <ReviewCard key={review.id} review={review} />
               ))}
@@ -692,13 +641,19 @@ export default function MovieDetailClient({
             <h2 className="mb-4 text-xl font-bold text-white">Production</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {movie.production_companies.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Studios</p>
-                  <div className="flex flex-col gap-1.5">
-                    {movie.production_companies.map((c) => (
-                      <div key={c.id} className="flex items-center gap-2">
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded bg-red-500/15">
+                      <Film className="h-4 w-4 text-red-400" />
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Studios</p>
+                  </div>
+                  <p className="text-2xl font-bold text-white mb-3">{movie.production_companies.length}</p>
+                  <div className="flex flex-col gap-2">
+                    {movie.production_companies.slice(0, 4).map((c) => (
+                      <div key={c.id} className="flex items-center gap-2.5">
                         {c.logo_path ? (
-                          <div className="relative h-6 w-8 flex-shrink-0">
+                          <div className="relative h-5 w-8 flex-shrink-0">
                             <Image
                               src={tmdbImage(c.logo_path, "w92") ?? ""}
                               alt={c.name}
@@ -708,20 +663,26 @@ export default function MovieDetailClient({
                             />
                           </div>
                         ) : null}
-                        <span className="text-sm text-white/80">{c.name}</span>
+                        <span className="text-sm text-white/80 truncate">{c.name}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : null}
               {movie.production_countries.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Countries</p>
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded bg-blue-500/15">
+                      <Globe2 className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Countries</p>
+                  </div>
+                  <p className="text-2xl font-bold text-white mb-3">{movie.production_countries.length}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {movie.production_countries.map((c) => (
                       <span
                         key={c.iso_3166_1}
-                        className="rounded bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
+                        className="rounded-md bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
                       >
                         {c.name}
                       </span>
@@ -730,13 +691,19 @@ export default function MovieDetailClient({
                 </div>
               ) : null}
               {movie.spoken_languages.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Languages</p>
+                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded bg-green-500/15">
+                      <Languages className="h-4 w-4 text-green-400" />
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Languages</p>
+                  </div>
+                  <p className="text-2xl font-bold text-white mb-3">{movie.spoken_languages.length}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {movie.spoken_languages.map((lang) => (
                       <span
                         key={lang.iso_639_1}
-                        className="rounded bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
+                        className="rounded-md bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
                       >
                         {lang.english_name}
                       </span>
@@ -744,22 +711,6 @@ export default function MovieDetailClient({
                   </div>
                 </div>
               ) : null}
-            </div>
-          </section>
-        ) : null}
-
-        {hasKeywords ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">Keywords</h2>
-            <div className="flex flex-wrap gap-2">
-              {keywords.map((kw) => (
-                <span
-                  key={kw.id}
-                  className="rounded-full bg-zinc-800/80 px-3 py-1 text-xs font-medium text-zinc-300 ring-1 ring-zinc-700/50"
-                >
-                  {kw.name}
-                </span>
-              ))}
             </div>
           </section>
         ) : null}
@@ -841,7 +792,7 @@ export default function MovieDetailClient({
         ) : null}
       </main>
 
-      {galleryIndex !== null && backdrops[galleryIndex] ? (
+      {galleryIndex !== null && galleryItems[galleryIndex] ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
           onClick={() => setGalleryIndex(null)}
@@ -853,7 +804,7 @@ export default function MovieDetailClient({
             Close
           </button>
           <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs text-zinc-500">
-            {galleryIndex + 1} / {backdrops.length}
+            {galleryIndex + 1} / {galleryItems.length}
           </span>
           {galleryIndex > 0 ? (
             <button
@@ -863,7 +814,7 @@ export default function MovieDetailClient({
               <ChevronLeft className="h-5 w-5" />
             </button>
           ) : null}
-          {galleryIndex < backdrops.length - 1 ? (
+          {galleryIndex < galleryItems.length - 1 ? (
             <button
               onClick={(e) => { e.stopPropagation(); setGalleryIndex(galleryIndex + 1); }}
               className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition backdrop-blur-sm"
@@ -876,8 +827,8 @@ export default function MovieDetailClient({
             onClick={(e) => e.stopPropagation()}
           >
             <Image
-              src={tmdbImage(backdrops[galleryIndex].file_path, "w1280") ?? ""}
-              alt={`${movie.title} still ${galleryIndex + 1}`}
+              src={tmdbImage(galleryItems[galleryIndex].file_path, galleryItems[galleryIndex].kind === "poster" ? "w780" : "w1280") ?? ""}
+              alt={`${movie.title} ${galleryItems[galleryIndex].kind} ${galleryIndex + 1}`}
               fill
               className="object-contain"
               sizes="95vw"

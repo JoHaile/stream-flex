@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import EpisodeList from "@/components/shared/EpisodeList";
 import type { TVEpisode, TVSeriesDetails, TMDBReview, TMDBWatchProviderResult, TMDBImageAsset, TMDBKeyword } from "@/utils/tmdb";
-import { getTVEpisodeEmbedUrl } from "@/utils/embed";
+import {
+  getTVEpisodeEmbedUrl,
+  getTVEpisodeEmbedUrlAlt,
+  SERVERS,
+  type ServerId,
+} from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
 import { ChevronLeft, ChevronRight, StarIcon, TrendingUp, Calendar } from "lucide-react";
 
@@ -92,7 +97,8 @@ function getRelatedTitles(series: TVSeriesDetails) {
   });
 }
 
-function getEpisodeEmbedUrl(seriesId: string, season: number, episode: number) {
+function getEpisodeEmbedUrl(seriesId: string, season: number, episode: number, server: ServerId = "default") {
+  if (server === "alt") return getTVEpisodeEmbedUrlAlt(seriesId, season, episode);
   return getTVEpisodeEmbedUrl(seriesId, season, episode);
 }
 
@@ -190,6 +196,7 @@ export default function TVSeriesDetailClient({
   const [showPlayer, setShowPlayer] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [activeServer, setActiveServer] = useState<ServerId>("default");
 
   const relatedRowRef = useRef<HTMLDivElement>(null);
   const stillsRowRef = useRef<HTMLDivElement>(null);
@@ -387,12 +394,17 @@ export default function TVSeriesDetailClient({
           initialSeason={initialSeason}
           currentEpisode={currentEpisode}
           onSelectEpisode={handleEpisodeSelect}
+          servers={SERVERS}
+          activeServer={activeServer}
+          onServerChange={setActiveServer}
         >
           <iframe
+            key={`${activeServer}-${currentEpisode.season}-${currentEpisode.episode}`}
             src={getEpisodeEmbedUrl(
               seriesId,
               currentEpisode.season,
               currentEpisode.episode,
+              activeServer,
             )}
             title={seriesData.name || "TV series player"}
             className="absolute inset-0 h-full w-full border-none"

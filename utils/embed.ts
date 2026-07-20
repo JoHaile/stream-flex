@@ -1,4 +1,5 @@
 const RAW_BASE_URL = process.env.NEXT_PUBLIC_MOVIE_DB_BASE_URL ?? "";
+const EMBOS_BASE_URL = "https://embos.top";
 
 const BASE_URL = RAW_BASE_URL.replace(/\/+$/, "");
 
@@ -31,4 +32,28 @@ export function getTVEpisodeEmbedUrl(
   );
 }
 
+export function getMovieEmbedUrlAlt(id: string) {
+  return `${EMBOS_BASE_URL}/movie/?mid=${encodeURIComponent(id)}`;
+}
+
+export function getTVEpisodeEmbedUrlAlt(
+  seriesId: string,
+  season: number,
+  episode: number,
+) {
+  return `${EMBOS_BASE_URL}/tv/?mid=${encodeURIComponent(seriesId)}&s=${season}&e=${episode}`;
+}
+
 export const EMBED_BASE_URL = BASE_URL;
+
+export type ServerId = "default" | "alt";
+
+export type ServerConfig = {
+  id: ServerId;
+  label: string;
+};
+
+export const SERVERS: ServerConfig[] = [
+  { id: "default", label: "Server 1" },
+  { id: "alt", label: "Server 2" },
+];

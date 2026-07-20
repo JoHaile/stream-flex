@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ListIcon, XIcon } from "lucide-react";
+import { ListIcon, ServerIcon, XIcon } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import EpisodeList from "@/components/shared/EpisodeList";
+import type { ServerId, ServerConfig } from "@/utils/embed";
 
 type EpisodeData = {
   id: number;
@@ -41,6 +42,9 @@ type Props = {
     episodeNum: number,
     episode?: EpisodeData,
   ) => void;
+  servers?: ServerConfig[];
+  activeServer?: ServerId;
+  onServerChange?: (server: ServerId) => void;
 };
 
 export default function MediaPlayer({
@@ -56,8 +60,12 @@ export default function MediaPlayer({
   initialSeason,
   currentEpisode,
   onSelectEpisode,
+  servers,
+  activeServer,
+  onServerChange,
 }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [showServers, setShowServers] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -83,17 +91,17 @@ export default function MediaPlayer({
     setSheetOpen(false);
   };
 
+  const hasServers = servers && servers.length > 1 && onServerChange;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm landscape:bg-black landscape:backdrop-blur-none"
-      onClick={onClose}
     >
       <div
         className="relative mx-4 w-full max-w-5xl landscape:mx-0 landscape:flex landscape:h-full landscape:max-w-full landscape:items-center landscape:justify-center"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="relative w-full rounded-lg bg-black shadow-2xl landscape:h-full landscape:max-h-screen landscape:rounded-none">
-          <div className="relative aspect-video w-full pb-16 landscape:h-full landscape:pb-0">
+          <div className="relative aspect-video w-full pb-24 landscape:h-full landscape:pb-0">
             <button
               onClick={onClose}
               className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-red-500"
@@ -101,6 +109,37 @@ export default function MediaPlayer({
               <XIcon className="h-3.5 w-3.5" />
               Close
             </button>
+
+            {hasServers ? (
+              <button
+                onClick={() => setShowServers((prev) => !prev)}
+                className="absolute left-3 top-12 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
+              >
+                <ServerIcon className="h-3.5 w-3.5" />
+                {servers.find((s) => s.id === activeServer)?.label ?? "Server"}
+              </button>
+            ) : null}
+
+            {hasServers && showServers ? (
+              <div className="absolute left-3 top-[5.5rem] z-10 flex flex-col gap-1">
+                {servers.map((server) => (
+                  <button
+                    key={server.id}
+                    onClick={() => {
+                      onServerChange(server.id);
+                      setShowServers(false);
+                    }}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${
+                      activeServer === server.id
+                        ? "bg-white text-black"
+                        : "bg-black/70 text-zinc-300 hover:bg-black/90 hover:text-white"
+                    }`}
+                  >
+                    {server.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             {showEpisodes ? (
               <button
@@ -133,7 +172,7 @@ export default function MediaPlayer({
           </div>
 
           {info ? (
-            <div className="px-4 pb-4 pt-4 bg-gradient-to-t from-black/80 to-black landscape:absolute landscape:bottom-0 landscape:left-0 landscape:right-0">
+            <div className="px-4 pb-4 pt-4 bg-gradient-to-t from-black/80 to-black landscape:absolute landscape:bottom-6 landscape:left-0 landscape:right-0 pointer-events-none">
               <div className="flex items-center justify-between">{info}</div>
             </div>
           ) : null}
