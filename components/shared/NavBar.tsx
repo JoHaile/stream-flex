@@ -4,8 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { BellIcon, Menu, XIcon } from "lucide-react";
-import CreateRoomModal from "@/components/virtual-cinema/CreateRoomModal";
-import JoinRoomModal from "@/components/virtual-cinema/JoinRoomModal";
 import {
   Drawer,
   DrawerTrigger,
@@ -287,15 +285,11 @@ function NavBar() {
 
         <div className="hidden md:flex items-center gap-3">
           <NavSearch />
-          <CreateRoomModal className="inline-flex items-center gap-2 rounded bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-500 transition-colors" />
-          <JoinRoomModal className="inline-flex items-center gap-2 rounded bg-zinc-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-zinc-600 transition-colors" />
           <NavActions />
         </div>
 
         <div className="md:hidden flex items-center gap-1">
           <SearchCommand triggerClassName="p-2 rounded-full hover:bg-zinc-800 transition-colors" />
-          <CreateRoomModal className="p-2 rounded-full hover:bg-zinc-800 transition-colors" aria-label="Create room" />
-          <JoinRoomModal className="p-2 rounded-full hover:bg-zinc-800 transition-colors" aria-label="Join room" />
           <Drawer>
             <DrawerTrigger asChild>
               <button
