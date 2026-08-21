@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@livekit/components-react": "^2.9.23",
+    "@livekit/components-styles": "^1.2.0",
     "@vercel/analytics": "^2.0.1",
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
@@ -17,6 +19,8 @@
     "cmdk": "^1.1.1",
     "dotenv": "^17.4.2",
     "ethio-logos": "^0.1.1",
+    "livekit-client": "^2.20.2",
+    "livekit-server-sdk": "^2.17.0",
     "lucide-react": "^1.16.0",
     "next": "16.2.4",
     "react": "19.2.4",
