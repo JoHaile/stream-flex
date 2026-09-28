@@ -35,6 +35,9 @@ type Props = {
   seasons?: SeasonData[];
   initialEpisodes?: EpisodeData[];
   initialSeason?: number;
+  selectedSeason?: number;
+  onSeasonChange?: (season: number) => void;
+  onEpisodesLoaded?: (season: number, episodes: EpisodeData[]) => void;
   currentEpisode?: { season: number; episode: number };
   onSelectEpisode?: (
     seasonNum: number,
@@ -54,6 +57,9 @@ export default function MediaPlayer({
   seasons,
   initialEpisodes,
   initialSeason,
+  selectedSeason,
+  onSeasonChange,
+  onEpisodesLoaded,
   currentEpisode,
   onSelectEpisode,
 }: Props) {
@@ -114,13 +120,19 @@ export default function MediaPlayer({
 
             {showEpisodes ? (
               <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-                <SheetContent>
-                  {seriesId && seasons ? (
+                <SheetContent keepMounted>
+                  {seriesId &&
+                  seasons &&
+                  selectedSeason !== undefined &&
+                  onSeasonChange ? (
                     <EpisodeList
                       seriesId={seriesId}
                       seasons={seasons}
                       initialEpisodes={initialEpisodes ?? []}
                       initialSeason={initialSeason ?? 1}
+                      selectedSeason={selectedSeason}
+                      onSeasonChange={onSeasonChange}
+                      onEpisodesLoaded={onEpisodesLoaded}
                       onEpisodeSelect={handleEpisodeSelect}
                       currentEpisode={currentEpisode}
                     />

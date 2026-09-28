@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { getTVSeasonDetails } from "@/utils/tmdb";
 import {
@@ -36,6 +36,11 @@ interface EpisodeListProps {
   seasons: Season[];
   initialEpisodes: Episode[];
   initialSeason: number;
+  /** Owned by the parent so the page list and the in-player drawer cannot disagree. */
+  selectedSeason: number;
+  onSeasonChange: (season: number) => void;
+  /** Fired once a season's episodes are known, so the player can show its metadata. */
+  onEpisodesLoaded?: (season: number, episodes: Episode[]) => void;
   onEpisodeSelect?: (
     seasonNum: number,
     episodeNum: number,
@@ -49,46 +54,72 @@ export default function EpisodeList({
   seasons,
   initialEpisodes,
   initialSeason,
+  selectedSeason,
+  onSeasonChange,
+  onEpisodesLoaded,
   onEpisodeSelect,
   currentEpisode,
 }: EpisodeListProps) {
-  const [selectedSeason, setSelectedSeason] = useState(initialSeason);
-  const [loadedEpisodes, setLoadedEpisodes] = useState<Episode[]>(initialEpisodes);
-  const [loading, setLoading] = useState(false);
-  const onEpisodeSelectRef = useRef(onEpisodeSelect);
-  onEpisodeSelectRef.current = onEpisodeSelect;
+  const [fetched, setFetched] = useState<Record<number, Episode[]>>({});
+  const [failedSeason, setFailedSeason] = useState<number | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
+  // Read synchronously so the fetch effect can check the cache without listing it
+  // as a dependency — otherwise every write would re-trigger the fetch.
+  const fetchedRef = useRef<Record<number, Episode[]>>({});
+  // Only the newest request may commit; otherwise switching seasons quickly lets
+  // an earlier, slower response overwrite the season actually being viewed.
+  const latestRequestRef = useRef(0);
+
+  // The server-rendered season reads straight from props, so a fresh
+  // `initialEpisodes` payload can never be shadowed by a stale cache entry.
+  // `null` means "not known yet", which is what drives the skeleton — rather than
+  // a lagging `loading` flag that would briefly render the previous season.
   const episodes =
-    selectedSeason === initialSeason ? initialEpisodes : loadedEpisodes;
+    selectedSeason === initialSeason
+      ? initialEpisodes
+      : (fetched[selectedSeason] ?? null);
+
+  useEffect(() => {
+    if (selectedSeason === initialSeason) return;
+    if (fetchedRef.current[selectedSeason]) return;
+
+    const requestId = ++latestRequestRef.current;
+    let cancelled = false;
+
+    getTVSeasonDetails(seriesId, selectedSeason)
+      .then((data) => {
+        if (cancelled || requestId !== latestRequestRef.current) return;
+        const next = {
+          ...fetchedRef.current,
+          [selectedSeason]: data?.episodes ?? [],
+        };
+        fetchedRef.current = next;
+        setFetched(next);
+      })
+      .catch(() => {
+        if (cancelled || requestId !== latestRequestRef.current) return;
+        setFailedSeason(selectedSeason);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seriesId, selectedSeason, initialSeason, retryNonce]);
+
+  useEffect(() => {
+    if (!episodes) return;
+    onEpisodesLoaded?.(selectedSeason, episodes);
+  }, [episodes, selectedSeason, onEpisodesLoaded]);
 
   const filteredSeasons = seasons.filter((s) => s.season_number > 0);
 
-  useEffect(() => {
-    if (selectedSeason === initialSeason) {
-      return;
-    }
-
-    const fetchSeason = async () => {
-      setLoading(true);
-      try {
-        const data = await getTVSeasonDetails(seriesId, selectedSeason);
-        if (data && data.episodes) {
-          setLoadedEpisodes(data.episodes);
-        }
-      } catch (error) {
-        console.error("Error fetching season:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSeason();
-  }, [selectedSeason, seriesId, initialSeason, initialEpisodes]);
-
   const handleSeasonChange = (value: string | null) => {
-    if (value) {
-      setSelectedSeason(parseInt(value));
-    }
+    if (!value) return;
+    const season = Number.parseInt(value, 10);
+    if (Number.isNaN(season) || season === selectedSeason) return;
+    setFailedSeason(null);
+    onSeasonChange(season);
   };
 
   const isActive = (ep: Episode) =>
@@ -102,29 +133,44 @@ export default function EpisodeList({
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-zinc-400">Season</span>
           <Select
-          value={String(selectedSeason)}
-          onValueChange={handleSeasonChange}
-        >
-          <SelectTrigger className="min-w-[130px] border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700 focus:ring-red-500">
-            <SelectValue placeholder="Select season" />
-          </SelectTrigger>
-          <SelectContent className="border border-zinc-700 bg-zinc-900 text-zinc-200">
-            {filteredSeasons.map((season) => (
-              <SelectItem
-                key={season.id}
-                value={String(season.season_number)}
-              >
-                Season {season.season_number}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            value={String(selectedSeason)}
+            onValueChange={handleSeasonChange}
+          >
+            <SelectTrigger className="min-w-[130px] border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700 focus:ring-red-500">
+              <SelectValue placeholder="Select season" />
+            </SelectTrigger>
+            <SelectContent className="border border-zinc-700 bg-zinc-900 text-zinc-200">
+              {filteredSeasons.map((season) => (
+                <SelectItem
+                  key={season.id}
+                  value={String(season.season_number)}
+                >
+                  Season {season.season_number}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       <div className="overflow-y-auto scrollbar-left flex-1 max-h-[520px] pr-1">
         <div className="flex flex-col gap-2">
-          {loading ? (
+          {failedSeason === selectedSeason ? (
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 text-center">
+              <p className="text-sm text-zinc-400">
+                Could not load Season {selectedSeason}.
+              </p>
+              <button
+                onClick={() => {
+                  setFailedSeason(null);
+                  setRetryNonce((nonce) => nonce + 1);
+                }}
+                className="mt-3 rounded-full bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-zinc-700 hover:text-white"
+              >
+                Try again
+              </button>
+            </div>
+          ) : !episodes ? (
             Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
@@ -138,6 +184,10 @@ export default function EpisodeList({
                 </div>
               </div>
             ))
+          ) : episodes.length === 0 ? (
+            <p className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 text-center text-sm text-zinc-500">
+              No episodes listed for Season {selectedSeason}.
+            </p>
           ) : (
             episodes.map((ep) => (
               <button

@@ -44,7 +44,7 @@ export default async function HomePage() {
               alt={featured.title || featured.name || "Featured title"}
               fill
               className="object-cover object-top"
-              priority
+              preload
               sizes="100vw"
             />
           ) : null}

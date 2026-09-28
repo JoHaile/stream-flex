@@ -52,14 +52,17 @@ function SheetContent({
   ...props
 }: DialogPrimitive.Popup.Props & {
   side?: "left" | "right"
+  /** Keep the popup mounted while closed so its internal state survives. */
+  keepMounted?: boolean
 }) {
+  const { keepMounted = false, ...popupProps } = props
   const sideClasses =
     side === "right"
       ? "right-0 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right"
       : "left-0 data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left"
 
   return (
-    <SheetPortal>
+    <SheetPortal keepMounted={keepMounted}>
       <SheetOverlay />
       <DialogPrimitive.Popup
         data-slot="sheet-content"
@@ -68,7 +71,7 @@ function SheetContent({
           sideClasses,
           className
         )}
-        {...props}
+        {...popupProps}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">

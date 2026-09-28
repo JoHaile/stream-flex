@@ -78,7 +78,7 @@ export default function CatalogPage({
             src={heroBackdrop}
             alt={heroTitle}
             fill
-            priority
+            preload
             className="object-cover object-top opacity-30"
             sizes="100vw"
           />

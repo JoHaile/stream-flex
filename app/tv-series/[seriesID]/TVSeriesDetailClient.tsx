@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import EpisodeList from "@/components/shared/EpisodeList";
+import MediaGallery from "@/components/shared/MediaGallery";
 import type { TVEpisode, TVSeriesDetails, TMDBReview, TMDBWatchProviderResult, TMDBImageAsset, TMDBKeyword } from "@/utils/tmdb";
 import { getTVEpisodeEmbedUrl } from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
@@ -117,10 +118,10 @@ function getUsProviders(
 
 function ReviewCard({ review }: { review: TMDBReview }) {
   const avatar = review.author_details?.avatar_path;
-  const avatarUrl = avatar
-    ? avatar.startsWith("/")
-      ? `https://image.tmdb.org/t/p/w45${avatar}`
-      : avatar
+  // TMDB returns an absolute Gravatar URL for authors without a TMDB account.
+  // Only serve avatars hosted by TMDB; anything else falls back to initials.
+  const avatarUrl = avatar?.startsWith("/")
+    ? `https://image.tmdb.org/t/p/w45${avatar}`
     : null;
   const rating = review.author_details?.rating ?? null;
   const cleanContent = review.content.replace(/<\/?[^>]+(>|$)/g, "");
@@ -187,12 +188,17 @@ export default function TVSeriesDetailClient({
   const [currentEpisodeData, setCurrentEpisodeData] = useState<TVEpisode | null>(
     initialEpisodes[0] ?? null,
   );
+  // Lifted out of EpisodeList: the page list and the in-player drawer render two
+  // independent instances, and a season picked in one must be reflected in both.
+  const [selectedSeason, setSelectedSeason] = useState(initialSeason);
   const [showPlayer, setShowPlayer] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
-  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+
+  // `selectedSeason` only ever changes through handleSeasonChange, so advancing
+  // this eagerly keeps onEpisodesLoaded's identity stable without an extra render.
+  const selectedSeasonRef = useRef(selectedSeason);
 
   const relatedRowRef = useRef<HTMLDivElement>(null);
-  const stillsRowRef = useRef<HTMLDivElement>(null);
   const reviewsRowRef = useRef<HTMLDivElement>(null);
 
   const scrollRow = (ref: React.RefObject<HTMLDivElement | null>, direction: "left" | "right") => {
@@ -215,9 +221,32 @@ export default function TVSeriesDetailClient({
 
   const handleEpisodeSelect = useCallback(
     (seasonNum: number, episodeNum: number, episode?: TVEpisode) => {
+      selectedSeasonRef.current = seasonNum;
+      setSelectedSeason(seasonNum);
       setCurrentEpisode({ season: seasonNum, episode: episodeNum });
       if (episode) setCurrentEpisodeData(episode);
       setShowPlayer(true);
+    },
+    [],
+  );
+
+  const handleSeasonChange = useCallback((season: number) => {
+    selectedSeasonRef.current = season;
+    setSelectedSeason(season);
+    // Point the player at the newly chosen season so the hero Play/Resume button
+    // and the drawer both act on it, instead of resuming whatever was last watched.
+    setCurrentEpisode({ season, episode: 1 });
+    setCurrentEpisodeData(null);
+  }, []);
+
+  const handleEpisodesLoaded = useCallback(
+    (season: number, episodes: TVEpisode[]) => {
+      if (season !== selectedSeasonRef.current) return;
+      const first = episodes[0];
+      if (!first) return;
+      // Only fill the gap left by handleSeasonChange; never overwrite the episode
+      // the user is actually on.
+      setCurrentEpisodeData((prev) => prev ?? first);
     },
     [],
   );
@@ -245,7 +274,6 @@ export default function TVSeriesDetailClient({
   const keywords = (seriesData.keywords?.results ?? []) as TMDBKeyword[];
   const imdbId = seriesData.external_ids?.imdb_id;
 
-  const hasGallery = backdrops.length > 0 || posters.length > 0;
   const hasReviews = reviews.length > 0;
   const hasProviders = usProviders && (usProviders.flatrate?.length || usProviders.rent?.length || usProviders.buy?.length);
   const hasKeywords = keywords.length > 0;
@@ -259,7 +287,7 @@ export default function TVSeriesDetailClient({
             src={heroBackdrop}
             alt={seriesData.name}
             fill
-            priority
+            preload
             className="object-cover object-top"
             sizes="100vw"
           />
@@ -385,6 +413,9 @@ export default function TVSeriesDetailClient({
           seasons={seriesData.seasons?.filter((s) => s.season_number > 0) ?? []}
           initialEpisodes={initialEpisodes}
           initialSeason={initialSeason}
+          selectedSeason={selectedSeason}
+          onSeasonChange={handleSeasonChange}
+          onEpisodesLoaded={handleEpisodesLoaded}
           currentEpisode={currentEpisode}
           onSelectEpisode={handleEpisodeSelect}
         >
@@ -447,6 +478,9 @@ export default function TVSeriesDetailClient({
             currentEpisode={currentEpisode}
             initialEpisodes={initialEpisodes}
             initialSeason={initialSeason}
+            selectedSeason={selectedSeason}
+            onSeasonChange={handleSeasonChange}
+            onEpisodesLoaded={handleEpisodesLoaded}
             onEpisodeSelect={handleEpisodeSelect}
             seasons={seriesData.seasons || []}
             seriesId={seriesId}
@@ -524,100 +558,85 @@ export default function TVSeriesDetailClient({
           </section>
         ) : null}
 
-        {hasGallery ? (
+        <MediaGallery
+          title={seriesData.name}
+          backdrops={backdrops}
+          posters={posters}
+        />
+
+        {relatedTitles.length ? (
           <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">Gallery</h2>
-            {backdrops.length ? (
-              <div className="mb-4">
-                <p className="mb-2 text-xs font-medium text-zinc-500 uppercase tracking-wider">Stills</p>
-                <div className="relative">
-                  <div
-                    ref={stillsRowRef}
-                    className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar"
-                  >
-                    {backdrops.map((img, i) => {
-                      const url = tmdbImage(img.file_path, "w780");
-                      if (!url) return null;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setGalleryIndex(i)}
-                          className="relative aspect-video h-28 flex-shrink-0 overflow-hidden rounded-md bg-zinc-800 group"
-                        >
-                          <Image
-                            src={url}
-                            alt={`${seriesData.name} still`}
-                            fill
-                            className="object-cover transition duration-300 group-hover:scale-105"
-                            sizes="180px"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
-                            <div className="h-10 w-10 rounded-full border-2 border-white/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                              <ChevronRight className="ml-0.5 h-4 w-4 text-white" />
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {backdrops.length > 3 ? (
-                    <>
-                      <button
-                        onClick={() => scrollRow(stillsRowRef, "left")}
-                        className="absolute left-0 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-zinc-300 hover:bg-black/80 hover:text-white transition"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => scrollRow(stillsRowRef, "right")}
-                        className="absolute right-0 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-zinc-300 hover:bg-black/80 hover:text-white transition"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </>
-                  ) : null}
-                </div>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">More Like This</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => scrollRelated("left")}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => scrollRelated("right")}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            ) : null}
-            {posters.length ? (
-              <div className="mt-6">
-                <p className="mb-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Posters &amp; Artwork</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                  {posters.slice(0, 8).map((img, i) => {
-                    const url = tmdbImage(img.file_path, i === 0 ? "w780" : "w342");
-                    if (!url) return null;
-                    const isFeatured = i === 0;
-                    const isBanner = i === 6 || i === 7;
-                    return (
-                      <div
-                        key={i}
-                        className={`relative overflow-hidden rounded-md bg-zinc-800 group ${
-                          isFeatured
-                            ? "col-span-2 row-span-2 md:col-span-2 md:row-span-2"
-                            : isBanner && posters.length > 6
-                              ? "col-span-2 sm:col-span-1 md:col-span-1"
-                              : ""
-                        }`}
-                      >
-                        <div className={isFeatured ? "aspect-[4/5] md:aspect-auto md:absolute md:inset-0" : "aspect-[2/3]"}>
-                          <Image
-                            src={url}
-                            alt={`${seriesData.name} poster`}
-                            fill
-                            className="object-cover transition duration-300 group-hover:scale-105"
-                            sizes={
-                              isFeatured
-                                ? "(max-width: 768px) 100vw, 50vw"
-                                : "(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-                            }
-                          />
+            </div>
+            <div
+              ref={relatedRowRef}
+              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar"
+            >
+              {relatedTitles.map((item) => {
+                const poster = tmdbImage(item.poster_path, "w342");
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/tv-series/${item.id}`}
+                    className="group flex-shrink-0 w-[150px]"
+                  >
+                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-sm bg-zinc-800">
+                      {poster ? (
+                        <Image
+                          src={poster}
+                          alt={item.name}
+                          fill
+                          className="object-cover transition duration-300 group-hover:scale-110 group-hover:opacity-60"
+                          sizes="150px"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-3 text-center text-xs text-zinc-500">
+                          {item.name}
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                        <div className="h-12 w-12 rounded-full border-2 border-white/80 flex items-center justify-center">
+                          <svg
+                            className="ml-0.5 h-5 w-5 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
+                      {item.vote_average ? (
+                        <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold">
+                          <StarIcon className="h-3 w-3 fill-red-500 text-red-500" />
+                          {item.vote_average.toFixed(1)}
+                        </div>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-white line-clamp-1 group-hover:text-red-400 transition-colors">
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {item.first_air_date?.slice(0, 4) || "TBA"}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
           </section>
         ) : null}
 
@@ -833,128 +852,7 @@ export default function TVSeriesDetailClient({
           </section>
         ) : null}
 
-        {relatedTitles.length ? (
-          <section className="border-t border-zinc-800 pt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">More Like This</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => scrollRelated("left")}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => scrollRelated("right")}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <div
-              ref={relatedRowRef}
-              className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar"
-            >
-              {relatedTitles.map((item) => {
-                const poster = tmdbImage(item.poster_path, "w342");
-                return (
-                  <Link
-                    key={item.id}
-                    href={`/tv-series/${item.id}`}
-                    className="group flex-shrink-0 w-[150px]"
-                  >
-                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-sm bg-zinc-800">
-                      {poster ? (
-                        <Image
-                          src={poster}
-                          alt={item.name}
-                          fill
-                          className="object-cover transition duration-300 group-hover:scale-110 group-hover:opacity-60"
-                          sizes="150px"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center px-3 text-center text-xs text-zinc-500">
-                          {item.name}
-                        </div>
-                      )}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                        <div className="h-12 w-12 rounded-full border-2 border-white/80 flex items-center justify-center">
-                          <svg
-                            className="ml-0.5 h-5 w-5 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
-                      </div>
-                      {item.vote_average ? (
-                        <div className="absolute top-2 right-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold">
-                          <StarIcon className="h-3 w-3 fill-red-500 text-red-500" />
-                          {item.vote_average.toFixed(1)}
-                        </div>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-sm font-semibold text-white line-clamp-1 group-hover:text-red-400 transition-colors">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {item.first_air_date?.slice(0, 4) || "TBA"}
-                    </p>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
       </main>
-
-      {galleryIndex !== null && backdrops[galleryIndex] ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
-          onClick={() => setGalleryIndex(null)}
-        >
-          <button
-            onClick={() => setGalleryIndex(null)}
-            className="absolute top-4 right-4 z-10 text-sm font-medium text-zinc-400 hover:text-white transition"
-          >
-            Close
-          </button>
-          <span className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs text-zinc-500">
-            {galleryIndex + 1} / {backdrops.length}
-          </span>
-          {galleryIndex > 0 ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); setGalleryIndex(galleryIndex - 1); }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition backdrop-blur-sm"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-          ) : null}
-          {galleryIndex < backdrops.length - 1 ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); setGalleryIndex(galleryIndex + 1); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition backdrop-blur-sm"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          ) : null}
-          <div
-            className="relative h-full w-full max-h-[85vh] max-w-[95vw]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Image
-              src={tmdbImage(backdrops[galleryIndex].file_path, "w1280") ?? ""}
-              alt={`${seriesData.name} still ${galleryIndex + 1}`}
-              fill
-              className="object-contain"
-              sizes="95vw"
-              priority
-            />
-          </div>
-        </div>
-      ) : null}
 
       <MediaPlayer
         isOpen={trailerOpen && !!trailer}

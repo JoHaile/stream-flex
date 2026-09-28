@@ -152,7 +152,7 @@ export default async function DiscoverPage({ params, searchParams }: Props) {
               src={featuredBackdrop}
               alt={featuredTitle}
               fill
-              priority
+              preload
               className="object-cover object-top"
               sizes="100vw"
             />
