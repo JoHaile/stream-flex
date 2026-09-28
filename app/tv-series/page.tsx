@@ -125,7 +125,7 @@ export default async function TVSeriesPage({ searchParams }: Props) {
         </section>
       ) : null}
 
-      <main className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+      <main className="page-container pb-16">
         <div className="relative z-10 mb-8">
           <TVSeriesControls
             defaultGenre={query.genre}

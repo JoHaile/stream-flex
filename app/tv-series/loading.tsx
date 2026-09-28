@@ -3,7 +3,7 @@ export default function Loading() {
     <div className="min-h-screen bg-black">
       <div className="h-[85vh] min-h-[520px] w-full bg-zinc-900 animate-pulse" />
 
-      <main className="mx-auto max-w-7xl px-6 pb-16">
+      <main className="page-container pb-16">
         <div className="-mt-16 relative z-10 mb-8 rounded-lg bg-zinc-900 p-5 shadow-2xl">
           <div className="h-4 w-40 bg-zinc-800 rounded animate-pulse" />
         </div>

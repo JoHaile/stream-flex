@@ -27,7 +27,6 @@ type SeasonData = {
 type Props = {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
   children: React.ReactNode;
   info?: React.ReactNode;
   showEpisodes?: boolean;
@@ -49,7 +48,6 @@ type Props = {
 export default function MediaPlayer({
   isOpen,
   onClose,
-  title,
   children,
   info,
   showEpisodes,

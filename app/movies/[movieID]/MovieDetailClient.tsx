@@ -331,11 +331,10 @@ export default function MovieDetailClient({
         </div>
       </section>
 
-      <main className="mx-auto max-w-7xl px-6 pb-16">
+      <main className="page-container pb-16">
         <MediaPlayer
           isOpen={showPlayer}
           onClose={() => setShowPlayer(false)}
-          title="Now Playing"
           info={
             <div className="flex w-full items-center justify-between">
               <p className="text-sm font-semibold text-white">{movie.title}</p>
@@ -350,7 +349,6 @@ export default function MovieDetailClient({
         >
           <iframe
             src={getEmbedUrl(movieId)}
-            title={movie.title || "Movie player"}
             className="absolute inset-0 h-full w-full border-none"
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             allowFullScreen
@@ -751,12 +749,10 @@ export default function MovieDetailClient({
       <MediaPlayer
         isOpen={trailerOpen && !!trailer}
         onClose={() => setTrailerOpen(false)}
-        title="Trailer"
       >
         {trailer ? (
           <iframe
             src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
-            title={`${movie.title} trailer`}
             className="absolute inset-0 h-full w-full border-none"
             allow="autoplay; encrypted-media; fullscreen"
             allowFullScreen

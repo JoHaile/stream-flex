@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import EpisodeList from "@/components/shared/EpisodeList";
 import MediaGallery from "@/components/shared/MediaGallery";
-import type { TVEpisode, TVSeriesDetails, TMDBReview, TMDBWatchProviderResult, TMDBImageAsset, TMDBKeyword } from "@/utils/tmdb";
+import type { TVEpisode, TVSeriesDetails, TMDBReview, TMDBWatchProviderResult, TMDBKeyword } from "@/utils/tmdb";
 import { getTVEpisodeEmbedUrl } from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
 import { ChevronLeft, ChevronRight, StarIcon, TrendingUp, Calendar } from "lucide-react";
@@ -388,16 +388,15 @@ export default function TVSeriesDetailClient({
         </div>
       </section>
 
-      <main className="mx-auto max-w-7xl px-6 pb-16">
+      <main className="page-container pb-16">
         <MediaPlayer
           isOpen={showPlayer}
           onClose={() => setShowPlayer(false)}
-          title="Now Playing"
           info={
             <div className="flex w-full items-center justify-between">
               <p className="text-sm font-semibold text-white">
                 {currentEpisodeData?.name
-                  ? `S${currentEpisode.season}:E${currentEpisode.episode} · ${currentEpisodeData.name}`
+                  ? `S${currentEpisode.season}:E${currentEpisode.episode} Â· ${currentEpisodeData.name}`
                   : `${seriesData.name}`}
               </p>
               <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -425,7 +424,6 @@ export default function TVSeriesDetailClient({
               currentEpisode.season,
               currentEpisode.episode,
             )}
-            title={seriesData.name || "TV series player"}
             className="absolute inset-0 h-full w-full border-none"
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             allowFullScreen
@@ -857,12 +855,10 @@ export default function TVSeriesDetailClient({
       <MediaPlayer
         isOpen={trailerOpen && !!trailer}
         onClose={() => setTrailerOpen(false)}
-        title="Trailer"
       >
         {trailer ? (
           <iframe
             src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
-            title={`${seriesData.name} trailer`}
             className="absolute inset-0 h-full w-full border-none"
             allow="autoplay; encrypted-media; fullscreen"
             allowFullScreen

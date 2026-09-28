@@ -28,7 +28,7 @@ export default function Loading() {
         </div>
       </section>
 
-      <main className="mx-auto max-w-7xl px-4 pb-20 pt-8 md:px-6 lg:px-8">
+      <main className="page-container pb-20 pt-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-8">
             <Skeleton className="aspect-video w-full rounded-[28px] bg-muted" />

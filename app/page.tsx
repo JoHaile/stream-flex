@@ -107,7 +107,7 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <div className="mx-auto max-w-7xl space-y-10 px-6 py-8">
+      <div className="page-container space-y-10 py-8">
         <MediaRow
           title="Trending Now"
           items={trendingAll}

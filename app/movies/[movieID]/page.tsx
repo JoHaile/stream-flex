@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import MovieDetailClient from "./MovieDetailClient";
-import {
-  getMovieDetails,
-  type MovieDetails,
-  type TMDBMovieCard,
-} from "@/utils/getMovies";
+import { getMovieDetails, type MovieDetails } from "@/utils/getMovies";
 
 type Props = {
   params: Promise<{ movieID: string }>;
