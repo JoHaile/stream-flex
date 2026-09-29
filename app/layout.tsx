@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NavBar from "@/components/shared/NavBar";
 import { Analytics } from "@vercel/analytics/react";
+import { SITE_URL } from "@/utils/site";
 
 // Inter is the only family any rule resolves to, so it is the only one loaded.
 // Geist and Geist_Mono were downloaded on every page view but referenced by no
@@ -12,6 +13,7 @@ import { Analytics } from "@vercel/analytics/react";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "StreamFlix",
   description:
     "StreamFlix lets you discover, browse, and explore movies and TV series. Powered by TMDB.",
