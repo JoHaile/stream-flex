@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "StreamFlix",
   },
+  verification: {
+    google: "3UParGri2xojr0Pt0bdZ9fna0m-BMimLGAwPqStpg3U",
+  },
 };
 
 export default function RootLayout({
