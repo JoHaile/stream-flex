@@ -1,0 +1,158 @@
+// StreamFlex database schema
+// - Better Auth core models: User, Session, Account, Verification
+// - Cinema (watch party) models: CinemaRoom, RoomMembership, RoomInvitation
+//
+// Generated client is written to ./generated/prisma (prisma-client generator).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  hostedRooms     CinemaRoom[]      @relation("RoomHost")
+  roomMemberships RoomMembership[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// Cinema (virtual watch party) models
+// ---------------------------------------------------------------------------
+
+enum CinemaRoomMode {
+  MOVIE_ONLY
+  VOICE
+  VOICE_VIDEO
+}
+
+enum CinemaRoomStatus {
+  OPEN
+  CLOSED
+}
+
+enum RoomRole {
+  HOST
+  GUEST
+}
+
+model CinemaRoom {
+  id             String           @id @default(cuid())
+  // Public, unpredictable, shareable room code (cryptographically generated).
+  code           String           @unique
+  name           String
+  hostId         String
+  host           User             @relation("RoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+  // Movie identifier used by the existing embed integration (numeric TMDB id).
+  movieId        String
+  movieTitle     String
+  // Maximum participants, the host counts toward this.
+  capacity       Int
+  mode           CinemaRoomMode   @default(MOVIE_ONLY)
+  status         CinemaRoomStatus @default(OPEN)
+
+  // Authoritative shared playback state.
+  isPlaying      Boolean          @default(false)
+  positionSeconds Float           @default(0)
+  stateVersion   Int              @default(0)
+  stateUpdatedAt DateTime         @default(now())
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  memberships    RoomMembership[]
+  invitations    RoomInvitation[]
+
+  @@index([status, mode])
+  @@map("cinema_room")
+}
+
+model RoomMembership {
+  id       String     @id @default(cuid())
+  roomId   String
+  room     CinemaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     RoomRole   @default(GUEST)
+  joinedAt DateTime   @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@map("room_membership")
+}
+
+model RoomInvitation {
+  id        String       @id @default(cuid())
+  roomId    String
+  room      CinemaRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  // SHA-256 hash of the raw invitation token (the raw token is never stored).
+  tokenHash String       @unique
+  createdAt DateTime     @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([roomId])
+  @@map("room_invitation")
+}

@@ -10,10 +10,14 @@ function withQuery(path: string, query: Record<string, string | number>) {
   return `${BASE_URL}${path}?${params.toString()}`;
 }
 
-export function getMovieEmbedUrl(id: string) {
+export function getMovieEmbedUrl(
+  id: string,
+  extra: Record<string, string | number> = {},
+) {
   return withQuery(`/movie/${encodeURIComponent(id)}/`, {
     autoplay: 1,
     muted: 1,
+    ...extra,
   });
 }
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BellIcon, Menu, XIcon } from "lucide-react";
+import { BellIcon, Clapperboard, Menu, XIcon } from "lucide-react";
 import {
   Drawer,
   DrawerTrigger,
@@ -15,6 +15,10 @@ import {
 import type { SearchResultItem } from "@/utils/catalog";
 import Image from "next/image";
 import SearchCommand from "@/components/shared/SearchCommand";
+import {
+  signOut,
+  useSession,
+} from "@/lib/auth-client";
 
 function tmdbImage(path: string | null | undefined, size = "w92") {
   if (!path) return null;
@@ -220,6 +224,17 @@ const NavActions = ({
   className?: string;
   isMobile?: boolean;
 }) => {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+  const user = session?.user ?? null;
+  const initial = user?.name?.trim()?.charAt(0)?.toUpperCase() ?? "?";
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/");
+    router.refresh();
+  };
+
   return (
     <div
       className={`flex ${
@@ -240,7 +255,49 @@ const NavActions = ({
             <span className="text-sm text-zinc-300">Notifications</span>
           )}
         </button>
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 ring-2 ring-white shadow-sm" />
+        {isPending ? null : user ? (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex text-right leading-tight">
+                <span className="max-w-[120px] truncate text-xs font-medium text-zinc-200">
+                  {user.name}
+                </span>
+                <span className="text-[10px] text-zinc-500">
+                  {user.email}
+                </span>
+              </div>
+              <div
+                title={user.name ?? ""}
+                className="h-8 w-8 rounded-full bg-gradient-to-br from-red-500 to-fuchsia-500 ring-2 ring-white shadow-sm flex items-center justify-center text-sm font-bold text-white"
+              >
+                {initial}
+              </div>
+              {isMobile ? (
+                <button
+                  onClick={handleSignOut}
+                  className="rounded-lg bg-red-600/90 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 transition"
+                >
+                  Sign out
+                </button>
+              ) : null}
+            </div>
+            {!isMobile ? (
+              <button
+                onClick={handleSignOut}
+                className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-red-500 hover:text-red-400 transition"
+              >
+                Sign out
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <Link
+            href="/sign-in"
+            className="rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-red-500 transition"
+          >
+            Sign in
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -285,6 +342,13 @@ function NavBar() {
 
         <div className="hidden md:flex items-center gap-3">
           <NavSearch />
+          <Link
+            href="/cinema/create"
+            className="inline-flex items-center gap-1.5 rounded-full border border-red-500/50 px-3.5 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition"
+          >
+            <Clapperboard className="w-3.5 h-3.5" />
+            Watch together
+          </Link>
           <NavActions />
         </div>
 
@@ -306,6 +370,13 @@ function NavBar() {
               <div className="flex flex-col gap-6 p-4 pt-0">
                 <NavLinks pathname={pathname} links={links} isMobile />
                 <div className="h-px bg-zinc-800" />
+                <Link
+                  href="/cinema/create"
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-500/50 px-4 py-2.5 text-sm font-bold text-red-400 hover:bg-red-500 hover:text-white transition"
+                >
+                  <Clapperboard className="w-4 h-4" />
+                  Watch together
+                </Link>
                 <NavActions isMobile />
               </div>
             </DrawerContent>

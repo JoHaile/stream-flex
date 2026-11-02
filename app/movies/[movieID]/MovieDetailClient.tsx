@@ -12,6 +12,7 @@ import {
   DollarSign,
   Landmark,
   Calendar,
+  Users as UsersIcon,
 } from "lucide-react";
 import type {
   MovieDetails,
@@ -307,6 +308,15 @@ export default function MovieDetailClient({
                 </svg>
                 Play
               </button>
+
+              <Link
+                href={`/cinema/create?movie=${encodeURIComponent(movieId)}&title=${encodeURIComponent(movie.title)}`}
+                className="inline-flex items-center gap-2 rounded bg-red-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-red-500 transition"
+                title="Start a watch party cinema room for this movie"
+              >
+                <UsersIcon className="h-4 w-4" />
+                Watch together
+              </Link>
 
               {trailer ? (
                 <button
