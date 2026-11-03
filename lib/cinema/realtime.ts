@@ -45,7 +45,8 @@ export type RoomChannelEvent = PlaybackEvent | RoomMetaEvent;
 export async function publishPlayback(roomId: string, event: RoomChannelEvent) {
   const ably = getAblyRest();
   if (!ably) return false;
-  await ably.channels.get(roomChannelName(roomId)).publish("cinema", event);
+  // Event name must match what clients subscribe to (PLAYBACK_EVENT).
+  await ably.channels.get(roomChannelName(roomId)).publish("playback", event);
   return true;
 }
 

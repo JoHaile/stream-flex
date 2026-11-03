@@ -89,8 +89,11 @@ export default function RoomClient({
     playerRef.current = player;
   }, [player]);
 
-  const joinUrl = useMemo(() => {
-    const base = `${window.location.origin}/cinema/join/${room.code}`;
+  // Build the full invite URL lazily — window is not defined during SSR, so
+  // this must never run in render. Use a relative path here and resolve the
+  // origin only at copy time (client-only event handler).
+  const invitePath = useMemo(() => {
+    const base = `/cinema/join/${room.code}`;
     return inviteToken ? `${base}?t=${inviteToken}` : base;
   }, [room.code, inviteToken]);
 
@@ -132,8 +135,15 @@ export default function RoomClient({
           return;
         }
         channelRef.current = ably;
+        const debugLog = (label: string, payload?: unknown) => {
+          if (typeof window !== "undefined" && (window as { __CINEMA_DEBUG?: boolean }).__CINEMA_DEBUG) {
+            console.log(`[cinema-debug] ${label}`, payload ?? "");
+          }
+        };
+        debugLog("ably connected", cinemaChannelName(room.id));
         ably!.onPlayback((message) => {
           const data = message.data as PlaybackPayload;
+          debugLog("playback event", data);
           if (data && typeof data.stateVersion === "number") {
             applyExternalPlayback({
               isPlaying: data.isPlaying,
@@ -143,7 +153,10 @@ export default function RoomClient({
             });
           }
         });
-        if (userId) ably!.enterPresence(userId);
+        ably!.onPresenceJoin((member) => debugLog("presence enter", member.clientId));
+        if (userId) {
+          ably!.enterPresence().then(() => debugLog("presence entered"));
+        }
       });
     }
 
@@ -178,7 +191,7 @@ export default function RoomClient({
           participants: roomState.data.participants,
         }));
       }
-    }, room.realtimeConfigured ? 8000 : 4000);
+    }, 5000);
 
     return () => {
       disposed = true;
@@ -195,7 +208,7 @@ export default function RoomClient({
       if (channelRef.current?.configured) return;
       const state = await getPlaybackState(room.id);
       if (state.ok) applyExternalPlayback(state.data);
-    }, 5000);
+    }, 3000);
     return () => clearInterval(fallback);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id, room.realtimeConfigured]);
@@ -297,13 +310,14 @@ export default function RoomClient({
 
   const copyInvite = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(joinUrl);
+      const url = `${window.location.origin}${invitePath}`;
+      await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
-  }, [joinUrl]);
+  }, [invitePath]);
 
   // -------------------------------------------------------------------------
   // Derived display state

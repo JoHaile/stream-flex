@@ -57,6 +57,10 @@ A "watch party" layer on top of the existing StreamFlix videos:
 5. `npm run dev` — the app runs at `http://localhost:3000`.
    Migration `20261102201438_init_auth_cinema` has already been applied; a
    fresh DB would need `npx prisma migrate deploy`.
+6. **Realtime is currently enabled** — `ABLY_KEY` is a root-access key in
+   `.env.local`. That means playback events travel over Ably and arrive in
+   under ~2s; the 4–8s polling fallback only kicks in if the key is removed
+   or the connection fails. Expect **fast** guest sync in this configuration.
 
 ## 3. The movie player nuance (read this first)
 

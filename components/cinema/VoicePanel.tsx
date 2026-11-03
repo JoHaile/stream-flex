@@ -100,7 +100,7 @@ export default function VoicePanel({
       });
       liveRoom.on(RoomEvent.TrackUnsubscribed, () => refreshPeers(liveRoom));
 
-      await liveRoom.connect(result.data.room, result.data.token);
+      await liveRoom.connect(result.data.url, result.data.token);
       await liveRoom.localParticipant.setMicrophoneEnabled(micOn);
       if (wantsVideo && camOn) {
         await liveRoom.localParticipant.setCameraEnabled(true);

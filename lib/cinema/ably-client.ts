@@ -42,7 +42,12 @@ export class AblyRoomChannel {
     });
 
     return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve({ ok: true }), 4000);
+      // If we are not actually attached within this window, report failure so
+      // the room falls back to polling instead of silently missing events.
+      const timer = setTimeout(
+        () => resolve({ ok: false, reason: "connect timeout" }),
+        8000,
+      );
       this.ably!.connection.once("connected", () => {
         clearTimeout(timer);
         this.channel = this.ably!.channels.get(this.channelName);
@@ -73,8 +78,11 @@ export class AblyRoomChannel {
     return () => this.channel?.presence.unsubscribe("enter", callback);
   }
 
-  async enterPresence(clientId: string) {
-    await this.channel?.presence.enter(clientId);
+  async enterPresence() {
+    // The token already pins the clientId (the user's id); entering with no
+    // args uses that identity. Passing our own string here would be treated
+    // as presence *data*, not a clientId.
+    await this.channel?.presence.enter();
   }
 
   async leavePresence() {

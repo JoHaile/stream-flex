@@ -554,7 +554,11 @@ export async function hostPlaybackCommand(
     // Publish to the room channel; if Ably is not configured the event is
     // simply not broadcast (clients fall back to polling this same state).
     if (isAblyConfigured()) {
-      await publishPlayback(roomId, { type: "playback", ...state }).catch(() => {});
+      try {
+        await publishPlayback(roomId, { type: "playback", ...state });
+      } catch (error) {
+        console.error("[cinema] playback publish failed", error);
+      }
     }
     revalidatePath(`/cinema/room/${room.code ?? ""}`);
 
@@ -604,7 +608,9 @@ function livekitIdentity(userId: string) {
 export async function getLiveKitToken(
   roomId: string,
   opts: { wantVideo?: boolean },
-): Promise<ActionResult<{ token: string; room: string }>> {
+): Promise<
+  ActionResult<{ token: string; url: string; room: string }>
+> {
   try {
     const user = await requireUser();
     if (!isLiveKitConfigured()) {
@@ -627,7 +633,11 @@ export async function getLiveKitToken(
       mode: membership.room.mode,
       canVideo: Boolean(opts.wantVideo) && membership.room.mode === "VOICE_VIDEO",
     });
-    return ok({ token, room: `cinema-${roomId}` });
+    // The wss server URL is not a secret (the signed token is what grants
+    // access); the client needs it to call Room.connect(url, token).
+    const url = process.env.LIVEKIT_URL?.replace(/\/+$/, "");
+    if (!url) return fail("Voice/video is not configured yet.", "NOT_CONFIGURED");
+    return ok({ token, url, room: `cinema-${roomId}` });
   } catch (error) {
     return handleError(error);
   }
