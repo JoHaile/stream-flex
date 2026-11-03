@@ -151,16 +151,13 @@ export function useCinemaPlayer(
       const play = action === "play" || (action === "seek" && isPlaying);
       // Only re-mount if we actually need to (avoids flapping on seek storm).
       if (action === "seek" && Math.abs(position - positionRef.current) < 2) {
-        if (statusRef.current === "playing" || statusRef.current === "paused") return;
+        if (status === "playing" || status === "paused") return;
       }
       positionRef.current = position;
       swapSrc(position, play);
     },
-    [swapSrc],
+    [swapSrc, status],
   );
-
-  const statusRef = useRef<PlayerStatus>(status);
-  statusRef.current = status;
 
   const onPlaybackChange = useCallback((fn: ((s: PlayerSnapshot) => void) | null) => {
     onPlaybackChangeRef.current = fn;

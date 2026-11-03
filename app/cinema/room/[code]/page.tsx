@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getRoomDetailsByCode } from "@/lib/cinema/room-actions";
@@ -33,12 +34,12 @@ export default async function RoomPage({
         <div className="max-w-sm text-center">
           <h1 className="mb-2 text-xl font-black">Can&rsquo;t open room</h1>
           <p className="text-sm text-zinc-400">{result.error}</p>
-          <a
+          <Link
             href="/"
             className="mt-6 inline-block rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-500 transition"
           >
             Back to StreamFlix
-          </a>
+          </Link>
         </div>
       </main>
     );

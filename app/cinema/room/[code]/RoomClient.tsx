@@ -34,6 +34,7 @@ type PlaybackPayload = {
   positionSeconds: number;
   isPlaying: boolean;
   stateVersion: number;
+  stateUpdatedAt?: string;
 };
 
 const MODE_LABEL: Record<RoomDetails["mode"], string> = {
@@ -75,7 +76,6 @@ export default function RoomClient({
   const [seekBuffer, setSeekBuffer] = useState<number | null>(null);
 
   const stateVersionRef = useRef(room.playback.stateVersion);
-  const tickRef = useRef(Date.now());
   const channelRef = useRef<AblyRoomChannel | null>(null);
 
   const player = useCinemaPlayer(room.movieId, {
@@ -85,12 +85,13 @@ export default function RoomClient({
 
   // Keep a mutable handle to the player API for event listeners.
   const playerRef = useRef(player);
-  playerRef.current = player;
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
 
   const joinUrl = useMemo(() => {
     const base = `${window.location.origin}/cinema/join/${room.code}`;
     return inviteToken ? `${base}?t=${inviteToken}` : base;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.code, inviteToken]);
 
   // -------------------------------------------------------------------------
@@ -138,7 +139,7 @@ export default function RoomClient({
               isPlaying: data.isPlaying,
               positionSeconds: data.positionSeconds,
               stateVersion: data.stateVersion,
-              stateUpdatedAt: new Date().toISOString(),
+              stateUpdatedAt: data.stateUpdatedAt ?? new Date().toISOString(),
             });
           }
         });
@@ -245,7 +246,9 @@ export default function RoomClient({
     if (!isHost) return;
     const position = Math.floor(
       playback.positionSeconds +
-        (playback.isPlaying ? (Date.now() - tickRef.current) / 1000 : 0),
+        (playback.isPlaying
+          ? (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
+          : 0),
     );
     void sendHostCommand(playback.isPlaying ? "pause" : "play", position);
   }, [isHost, playback, sendHostCommand]);
@@ -256,9 +259,11 @@ export default function RoomClient({
       const position = Math.max(
         0,
         Math.floor(
-          playback.positionSeconds +
-            (playback.isPlaying ? (Date.now() - tickRef.current) / 1000 : 0) +
-            delta,
+           playback.positionSeconds +
+             (playback.isPlaying
+               ? (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
+               : 0) +
+             delta,
         ),
       );
       void sendHostCommand("seek", position);
@@ -305,7 +310,9 @@ export default function RoomClient({
   // -------------------------------------------------------------------------
 
   const positionSeconds = playback.isPlaying
-    ? playback.positionSeconds + (Date.now() - tickRef.current) / 1000
+    ? playback.positionSeconds +
+      // eslint-disable-next-line react-hooks/purity
+      (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
     : seekBuffer ?? playback.positionSeconds;
 
   const maxScrub = Math.max(player.snapshot.duration || 0, playback.positionSeconds + 60, 120);
@@ -445,7 +452,6 @@ export default function RoomClient({
                   title={room.movieTitle}
                   allowFullScreen
                   allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  sandbox="allow-same-origin allow-scripts allow-forms"
                   className="h-full w-full"
                 />
               ) : null}

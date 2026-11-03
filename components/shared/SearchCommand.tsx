@@ -42,6 +42,7 @@ export default function SearchCommand({
 
   useEffect(() => {
     if (!query.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResults([]);
       return;
     }
@@ -67,7 +68,9 @@ export default function SearchCommand({
 
   useEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
+       
       setResults([]);
     }
   }, [open]);

@@ -334,7 +334,7 @@ export async function leaveRoom(roomId: string): Promise<ActionResult<null>> {
     });
     if (!membership) return fail("You are not in this room.", "NOT_MEMBER");
 
-    const { role, room } = membership;
+    const { role } = membership;
     await db.$transaction(async (tx) => {
       await tx.roomMembership.delete({
         where: { roomId_userId: { roomId, userId: user.id } },

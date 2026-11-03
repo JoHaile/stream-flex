@@ -111,7 +111,7 @@ export default function VoicePanel({
       setError(e instanceof Error ? e.message : "Could not connect to the call.");
       setConnecting(false);
     }
-  }, [wantsVideo, micOn, camOn, refreshPeers]);
+  }, [wantsVideo, micOn, camOn, refreshPeers, room.id]);
 
   const leave = useCallback(() => {
     const liveRoom = roomRef.current;
