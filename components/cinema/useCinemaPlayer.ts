@@ -52,7 +52,7 @@ export function useCinemaPlayer(
   initialState?: { position: number; playing: boolean },
 ) {
   const [src, setSrc] = useState<string>(() =>
-    buildSrc(movieId, initialState?.position ?? 0, initialState?.playing ?? false),
+    buildSrc(movieId, initialState?.position ?? 0, initialState?.playing ?? false, true),
   );
   const [status, setStatus] = useState<PlayerStatus>(
     initialState?.playing ? "playing" : "paused",
@@ -67,6 +67,9 @@ export function useCinemaPlayer(
   const positionRef = useRef(initialState?.position ?? 0);
   const durationRef = useRef(0);
   const mutedRef = useRef(true);
+  const statusRef = useRef<PlayerStatus>(
+    initialState?.playing ? "playing" : "paused",
+  );
   const lastExternalAtRef = useRef(0);
   const pendingRemoteRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onPlaybackChangeRef = useRef<((snapshot: PlayerSnapshot) => void) | null>(null);
@@ -131,14 +134,18 @@ export function useCinemaPlayer(
     positionRef.current = position;
   }, []);
 
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
   const swapSrc = useCallback(
-    (position: number, play: boolean) => {
+    (position: number, play: boolean, muted: boolean = mutedRef.current) => {
       markExternal(position);
       setStatus(play ? "playing" : "paused");
       setSnapshot((prev) => ({ ...prev, position, status: play ? "playing" : "paused" }));
       setSrc(""); // unmount the iframe
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        setSrc(buildSrc(movieId, position, play));
+        setSrc(buildSrc(movieId, position, play, muted));
       }));
     },
     [movieId, markExternal],
@@ -173,13 +180,37 @@ export function useCinemaPlayer(
     [status],
   );
 
-  return { src, status, snapshot, applyCommand, onPlaybackChange, getSnapshot };
+  /**
+   * Toggle the movie's audio. Because the embed exposes no command API, this
+   * re-mounts the iframe at the current position with muted=0/1. It must run
+   * from a user gesture (browser autoplay policy) when unmuting.
+   */
+  const setMuted = useCallback(
+    (muted: boolean) => {
+      if (mutedRef.current === muted) return;
+      const position = positionRef.current;
+      markExternal(position);
+      mutedRef.current = muted;
+      setSnapshot((prev) => ({ ...prev, muted }));
+      const play = statusRef.current === "playing";
+      setStatus((prev) => (play ? "playing" : prev));
+      setSrc("");
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          setSrc(buildSrc(movieId, position, play, muted));
+        }),
+      );
+    },
+    [movieId, markExternal],
+  );
+
+  return { src, status, snapshot, applyCommand, onPlaybackChange, getSnapshot, setMuted };
 }
 
-function buildSrc(movieId: string, startSeconds: number, play: boolean) {
+function buildSrc(movieId: string, startSeconds: number, play: boolean, muted: boolean) {
   return getMovieEmbedUrl(movieId, {
     startAt: Math.max(0, Math.floor(startSeconds)),
     autoplay: play ? 1 : 0,
-    muted: 1,
+    muted: muted ? 1 : 0,
   });
 }

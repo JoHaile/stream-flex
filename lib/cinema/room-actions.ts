@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auth, type Session } from "@/lib/auth";
 import { generateInviteToken, generateRoomCode, hashInviteToken } from "@/lib/cinema/ids";
-import { isAblyConfigured, getAblyRest, publishPlayback, roomCapabilities } from "@/lib/cinema/realtime";
+import { isAblyConfigured, getAblyRest, publishPlayback, publishReaction, roomCapabilities } from "@/lib/cinema/realtime";
 import { isLiveKitConfigured, createLiveKitToken, livekitRoomName } from "@/lib/cinema/livekit";
 import {
   INVITE_TOKEN_TTL_MS,
@@ -217,13 +217,93 @@ function buildInviteUrl(code: string, token: string) {
   return `${base}/cinema/join/${encodeURIComponent(code)}?t=${encodeURIComponent(token)}`;
 }
 
+const REACTION_EMOJIS = ["\u{1F44D}", "\u{2764}", "\u{1F602}", "\u{1F62E}", "\u{1F525}"];
+
+/**
+ * Publish a watch-party reaction to the room's Ably channel. The client-side
+ * token only allows subscribe/presence, so reactions are validated and
+ * published server-side (no client publish rights on the room channel).
+ */
+export async function sendReaction(
+  roomId: string,
+  emoji: unknown,
+): Promise<ActionResult<null>> {
+  try {
+    const user = await requireUser();
+    assertRateLimit(`reaction:${user.id}`, 30_000, 20);
+    if (!REACTION_EMOJIS.includes(emoji as string)) {
+      return fail("Unknown reaction.", "INVALID_REACTION");
+    }
+    const membership = await db.roomMembership.findUnique({
+      where: { roomId_userId: { roomId, userId: user.id } },
+    });
+    if (!membership) return fail("You are not part of this room.", "NOT_MEMBER");
+    if (!isAblyConfigured()) return fail("Reactions need realtime.", "NOT_CONFIGURED");
+
+    await publishReaction(roomId, {
+      type: "reaction",
+      emoji: emoji as string,
+      name: user.name ?? "Guest",
+      id: user.id,
+      at: new Date().toISOString(),
+    });
+    return ok(null);
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+/**
+ * Issue a fresh host-only invite link. Guests pick the code up from the room
+ * header; only the host can mint revocable token links here.
+ */
+export async function createInviteLink(
+  roomId: string,
+): Promise<ActionResult<{ token: string; url: string }>> {
+  try {
+    const user = await requireUser();
+    assertRateLimit(`invite:${user.id}`, 60_000, 10);
+    const membership = await db.roomMembership.findUnique({
+      where: { roomId_userId: { roomId, userId: user.id } },
+      include: { room: { select: { code: true } } },
+    });
+    if (!membership) return fail("You are not part of this room.", "NOT_MEMBER");
+    if (membership.role !== "HOST") {
+      return fail("Only the host can create invite links.", "FORBIDDEN");
+    }
+    const token = generateInviteToken();
+    await db.roomInvitation.create({
+      data: {
+        roomId,
+        tokenHash: hashInviteToken(token),
+        expiresAt: new Date(Date.now() + INVITE_TOKEN_TTL_MS),
+      },
+    });
+    return ok({ token, url: buildInviteUrl(membership.room.code, token) });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
 export async function getRoomByCode(
   code: string,
 ): Promise<ActionResult<RoomInvitePreview>> {
   try {
     const room = await db.cinemaRoom.findUnique({
-      where: { code },
-      include: { host: { select: { name: true } }, _count: { select: { memberships: true } } },
+      where: { code: code.trim().toUpperCase() },
+      include: {
+        host: { select: { name: true, image: true } },
+        memberships: {
+          orderBy: { joinedAt: "asc" },
+          take: 6,
+          select: {
+            userId: true,
+            role: true,
+            user: { select: { name: true, image: true } },
+          },
+        },
+        _count: { select: { memberships: true } },
+      },
     });
     if (!room) return fail("That room does not exist.", "NOT_FOUND");
 
@@ -237,6 +317,13 @@ export async function getRoomByCode(
       capacity: room.capacity,
       members: room._count.memberships,
       hostName: room.host.name ?? "the host",
+      hostImage: room.host.image ?? null,
+      participants: room.memberships.map((m) => ({
+        id: m.userId,
+        name: m.user.name ?? "Guest",
+        role: m.role,
+        image: m.user.image ?? null,
+      })),
     });
   } catch (error) {
     return handleError(error);

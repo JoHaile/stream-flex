@@ -21,6 +21,14 @@ export interface PlaybackState {
   stateUpdatedAt: string; // ISO timestamp from server clock
 }
 
+/** A participant shown on the public join preview (name + avatar only). */
+export interface RoomParticipantPreview {
+  id: string;
+  name: string;
+  role: RoomRole;
+  image: string | null;
+}
+
 /** Room summary shown to someone previewing an invite link (no secrets). */
 export interface RoomInvitePreview {
   code: string;
@@ -32,10 +40,14 @@ export interface RoomInvitePreview {
   capacity: number;
   members: number;
   hostName: string;
+  hostImage: string | null;
+  /** Who is already in the room (name + role only, capped). */
+  participants: RoomParticipantPreview[];
 }
 
 /** Full authorized room payload for the room page. */
-export interface RoomDetails extends RoomInvitePreview {
+export interface RoomDetails
+  extends Omit<RoomInvitePreview, "participants" | "hostImage"> {
   id: string;
   isHost: boolean;
   myRole: RoomRole;

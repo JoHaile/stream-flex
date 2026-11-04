@@ -66,9 +66,12 @@ function mediaErrorMessage(error: unknown): string {
 export default function CallPanel({
   room,
   initialChoice,
+  onInCallChange,
 }: {
   room: RoomDetails;
   initialChoice?: JoinChoice;
+  /** Reports livekit identities (`sf-<userId>`) currently in the call. */
+  onInCallChange?: (identities: string[]) => void;
 }) {
   const wantsVideo = room.mode === "VOICE_VIDEO";
 
@@ -92,6 +95,10 @@ export default function CallPanel({
   const roomRef = useRef<Room | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const localVideoRef = useRef<HTMLDivElement | null>(null);
+  const onInCallChangeRef = useRef(onInCallChange);
+  useEffect(() => {
+    onInCallChangeRef.current = onInCallChange;
+  }, [onInCallChange]);
   const audioOnRef = useRef(audioOn);
   const videoOnRef = useRef(videoOn);
   const micDeviceRef = useRef(micDeviceId);
@@ -196,8 +203,16 @@ export default function CallPanel({
     }
   }, []);
 
+  const reportInCall = useCallback((liveRoom: Room) => {
+    onInCallChangeRef.current?.([
+      liveRoom.localParticipant.identity,
+      ...Array.from(liveRoom.remoteParticipants.values()).map((p) => p.identity),
+    ]);
+  }, []);
+
   const syncFromRoom = useCallback(
     (liveRoom: Room, speakers = new Set<string>()) => {
+      reportInCall(liveRoom);
       if (typeof window !== "undefined" && (window as { __CINEMA_DEBUG?: boolean }).__CINEMA_DEBUG) {
         console.log(
           "[lk-debug]",
@@ -213,7 +228,7 @@ export default function CallPanel({
         prev.map((p) => ({ ...p, speaking: sp.includes(p.identity) })),
       );
     },
-    [refreshPeers, renderLocal],
+    [refreshPeers, renderLocal, reportInCall],
   );
 
   // -------------------------------------------------------------------------
@@ -235,6 +250,7 @@ export default function CallPanel({
     setMediaError(null);
     setPeers([]);
     setInCallSeconds(0);
+    onInCallChangeRef.current?.([]);
     if (gridRef.current) gridRef.current.replaceChildren();
     if (localVideoRef.current) localVideoRef.current.replaceChildren();
   }, []);
@@ -293,6 +309,7 @@ export default function CallPanel({
         setPhase("setup");
         setPeers([]);
         setInCallSeconds(0);
+        onInCallChangeRef.current?.([]);
         if (gridRef.current) gridRef.current.replaceChildren();
         if (localVideoRef.current) localVideoRef.current.replaceChildren();
         roomRef.current = null;
@@ -660,6 +677,26 @@ export default function CallPanel({
           </div>
         </>
       )}
+
+      {/* Mobile call bar — the controls travel with you while you watch. */}
+      {phase === "joined" ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-center gap-4 border-t border-zinc-800 bg-zinc-950/95 px-4 py-3 backdrop-blur lg:hidden">
+          <RoundButton onClick={toggleMic} active={audioOn} label={audioOn ? "Mute microphone" : "Unmute microphone"} title="">
+            {audioOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+          </RoundButton>
+          {wantsVideo ? (
+            <RoundButton onClick={toggleCam} active={videoOn} label={videoOn ? "Turn camera off" : "Turn camera on"} title="">
+              {videoOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
+            </RoundButton>
+          ) : null}
+          <RoundButton onClick={cleanup} active={false} label="Leave the call" title="" danger>
+            <PhoneOff className="h-5 w-5" />
+          </RoundButton>
+          <span className="text-[11px] font-semibold text-zinc-400">
+            {peers.length + 1} in call
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -30,18 +30,23 @@ A "watch party" layer on top of the existing StreamFlix videos:
   link** with a revocable/expiring token. Guests sign in (any account) and
   join by code or link.
 - **Host-controlled playback** — the host's room page is the only one with
-  Play / Pause / Seek controls; guests' players follow the host's commands.
-- **Realtime** — Ably when `ABLY_KEY` is set; an automatic **4–8s polling
-  fallback** when it isn't. The server is authoritative either way; clients
-  never publish to the room channel.
+  Play / Pause / Seek controls; guests see a **host-status card** instead
+  (no disabled controls) and follow the host via commands.
+- **Realtime** — Ably when `ABLY_KEY` is set (playback events, presence,
+  **reactions** — server-published since client tokens are subscribe-only);
+  an automatic **4–8s polling fallback** when it isn't (reactions hidden).
+  The server is authoritative either way.
 - **Voice / video** — for `VOICE` and `VOICE_VIDEO` rooms via LiveKit
   (already configured in `.env.local` with the cloud `wss://...livekit.cloud`
-  URL). `MOVIE_ONLY` rooms have no call UI.
+  URL). `MOVIE_ONLY` rooms have no call UI. Token grants follow the room
+  mode (ceiling), so guests can flip mic/camera mid-call without a new
+  token.
 - **Player mechanics** — each participant still loads the movie from their
   own existing VidSrc iframe (`vsembed.ru`). The room layer never touches
-  movie bytes. Because VidSrc exposes no parent→player command API, the host
-  controls are implemented by re-mounting the iframe with URL params:
-  `autoplay`, `muted`, `startAt=<seconds>`.
+  movie bytes. Because VidSrc exposes no parent→player command API, host
+  controls are implemented by re-mounting the iframe with URL params
+  (`autoplay`, `muted`, `startAt=<seconds>`). Movies **start muted** with a
+  "Tap to enable sound" overlay — unmuting just re-mounts with `muted=0`.
 
 ## 2. What needs to be set up to test
 
@@ -123,9 +128,11 @@ is **no documented parent→player command API**, so:
       highlights the card; create is disabled until a movie is picked.
 - [ ] A room code is **8 characters** from an unambiguous alphabet
       (no `0 O 1 I L`), displayed as a monospace badge.
-- [ ] Overlay: room page shows **Invite** panel with room code + **Copy
-      invite link**. The link is `/cinema/join/<CODE>?t=<token>`. Joining with
-      just the code also works (token is optional).
+- [ ] Room page has a **compact invite strip** (room code + Copy link +
+      "Invite details" toggle, collapsed by default). Copy link creates a
+      fresh `t=` token via `createInviteLink` when none is present; the link
+      is `/cinema/join/<CODE>?t=<token>`. Joining with just the code also
+      works (token is optional).
 - [ ] Host counts toward capacity (capacity 2 = host + 1 guest).
 
 ### Join flow
@@ -135,12 +142,22 @@ is **no documented parent→player command API**, so:
 - [ ] **Revoked/expired invite** → only via `t=` token path; revoking isn't
       exposed in UI (server supports `revokedAt`).
 - [ ] **Closed room** → join page shows "This cinema room has closed."
+- [ ] Join page shows movie artwork (backdrop + poster from TMDB), the movie
+      title, host name, an avatar stack of current participants, seats taken,
+      and room mode. Metadata is readable on dark (no 10 px zinc-500 text).
 
 ### Room page
 - [ ] Host: Play/Pause toggle, ±30 s seek buttons, scrubber (drag then
-      release seeks; host only).
-- [ ] Guest: no host controls; **Re-sync** button re-applies the last known
-      host state.
+      release seeks; host only), **Sound on/off** button. Keyboard shortcuts:
+      **Space = play/pause**, **←/→ = seek ±10 s** (ignored inside inputs).
+- [ ] Guest: sees a **host-status card** ("Host is playing / paused / waiting
+      to start") with the live position, a labeled **Re-sync with host**
+      button and an **Unmute movie** toggle — never the disabled host scrubber
+      or buttons.
+- [ ] Sound: the embedded player **starts muted**; a "Tap to enable sound"
+      pill over the player and the Sound toggle both unmute by remounting the
+      iframe at the current position (the cross-origin embed has no volume
+      API). The muted state survives host commands and Re-sync.
 - [ ] Member list shows participants with a **Host** badge and seat count.
 - [ ] "Polling mode" banner is visible when `ABLY_KEY` is empty; absent when set.
 - [ ] Join page (VOICE / VOICE_VIDEO): a **When you join** picker offers
@@ -165,40 +182,55 @@ is **no documented parent→player command API**, so:
 ### Robustness
 - [ ] Two tabs signed in as the same user in the same room do not corrupt
       state (stateVersion guard only applies newer versions).
-- [ ] Host closes the room while guest is on the join page → guest sees
-      "closed" (server enforces `status !== 'OPEN'`).
+- [ ] **Close room** shows a confirm dialog; the guest then sees a
+      "room closed" banner and playback controls are disabled. If the host
+      closes the tab instead, a `pagehide` beacon to `POST /api/cinema/leave`
+      releases the seat and closes the room (no zombie parties).
+- [ ] Reactions: with Ably configured, clicking 👍 ❤️ 😂 😮 🔥 floats the emoji
+      over everyone's player; a guest connected to the call shows an **In
+      call** dot in the participant list.
 - [ ] Seek to a position beyond the movie → scrubs clamp to ≥ 0; server
       parser rejects non-numeric positions.
 - [ ] Server action abuse: a guest calling `hostPlaybackCommand` directly
       gets `FORBIDDEN` ("Only the host can control playback."). Test by
       calling the action with a session of a non-host user.
 
-## 5. Automated smoke test
+## 5. Manual walkthrough (the Playwright scripts were removed)
 
-A headless Playwright smoke test already exists as
-`.smoke-cinema.mjs` (temporarily; re-create it by asking the human) and
-verifies, end to end: host + guest sign-up, wizard (`?movie=` prefill),
-room creation, host play, guest join-by-code, guest polling sync
-(pause *and* play), host close, guest sees closed room.
+The throwaway scripts (`.smoke-*.mjs`, `.ux-*.mjs`, `shots/`) are **deleted**
+— they were gatekeepers during development, not part of the repo. Last runs:
+`.smoke-join.mjs` 38/39 (the 1 miss was the script clicking the wrong "Join"
+button on home — not an app bug), `.finale-check.mjs` 12/12 (in-call dot,
+Space shortcut, reaction float, mobile call bar, close confirm, closed
+banner). The **sound toggle** was intentionally left to manual testing —
+verify it by hand with the walkthrough below.
 
-Run it with the dev server up:
-```bash
-node ./.smoke-cinema.mjs   # uses the system Edge via Playwright channel
-```
-Note: Edge/Chrome must be installed on the machine (`channel: "msedge"`);
-Playwright's own browser downloads are not required.
+Walkthrough (two Edge/Chrome windows, dev server on :3000):
+1. Sign up host → `/cinema/create?movie=27205&title=Inception` → Continue →
+   **Voice + video** → Continue → **Create cinema room**.
+2. Host: join the call (no permission prompt before), Space to start, drag
+   the scrubber, send a reaction, narrow the window to ~390 px for the fixed
+   bottom call bar, then **Close room** (expect a confirm dialog).
+3. Guest in window 2: on the home page use the **"Have a room code?"** card
+   to enter the code → join page shows artwork + host + seats → pick
+   "Audio + video" → **Join room**.
+4. Guest: no host controls; "Host is playing" status; **Re-sync with host**;
+   **Unmute movie** + "Tap to enable sound" pill on the player; reaction
+   floats appear; the host row shows an "In call" dot; after the host closes
+   the room a "closed" banner appears and controls disable.
 
 ## 6. Known limitations (do not report as bugs)
 
-- **VidSrc iframe has no direct control API** — re-mounts are the mechanism;
-  a brief player reload visible on each host command is expected.
+- **VidSrc iframe has no audio/volume API** — sound is mute/unmute via
+  remount only (no volume slider); a brief player reload on each host command
+  (and on first unmute) is expected.
 - **Guests picking their own position locally** diverges until the next host
   command or Re-sync — by design (host is authoritative).
-- **Ably degrade:** without `ABLY_KEY` everything still works via polling;
-  presence "who's online right now" is approximated by the database member
-  list refreshed every 4–8s.
-- **No chat**, **no reaction emojis**, **no user avatars** yet — invites are
-  email/password accounts with initial-letter avatars.
+- **Ably degrade:** without `ABLY_KEY` everything works via polling;
+  who's-online is approximated by the DB member list refreshed every few
+  seconds, and reactions are hidden (server returns `NOT_CONFIGURED`).
+- **No chat** yet — reactions are the lightweight stand-in. Starting muted is
+  intentional (autoplay rules; unmute requires a user gesture).
 
 ## 7. Key files
 
@@ -209,12 +241,17 @@ Playwright's own browser downloads are not required.
 | Auth server | `lib/auth.ts`, `app/api/auth/[...all]/route.ts` |
 | Auth client | `lib/auth-client.ts` |
 | Cinema domain types/ids | `lib/cinema/types.ts`, `lib/cinema/ids.ts` |
-| Server actions (create/join/control/tokens) | `lib/cinema/room-actions.ts` |
-| Ably server REST helper | `lib/cinema/realtime.ts`, `lib/cinema/ably-client.ts` |
+| Server actions (create/join/control/tokens/reactions/invites) | `lib/cinema/room-actions.ts` (`sendReaction`, `createInviteLink`, `getLiveKitToken`) |
+| Ably server REST helper | `lib/cinema/realtime.ts` (`publishReaction`) |
+| Ably client | `lib/cinema/ably-client.ts` (`onReaction`) |
 | LiveKit tokens | `lib/cinema/livekit.ts` |
-| Player adapter hook | `components/cinema/useCinemaPlayer.ts` |
-| Voice/video call panel | `components/cinema/CallPanel.tsx` |
-| UI pages | `app/cinema/create/`, `app/cinema/join/[code]/`, `app/cinema/room/[code]/` |
+| Player adapter hook (muted state, `setMuted`) | `components/cinema/useCinemaPlayer.ts` |
+| Voice/video call panel (+ mobile fixed bar, in-call reporting) | `components/cinema/CallPanel.tsx` |
+| Join-by-code (home card + navbar) | `components/cinema/JoinByCode.tsx`, `components/cinema/HomeJoinCard.tsx`, `components/shared/NavBar.tsx` |
+| Room page client (guest status card, reactions, shortcuts, beacon) | `app/cinema/room/[code]/RoomClient.tsx` |
+| Join page (server artwork + client) | `app/cinema/join/[code]/page.tsx`, `JoinRoomClient.tsx` |
+| Host-exit beacon route | `app/api/cinema/leave/route.ts` |
+| Other UI pages | `app/cinema/create/` |
 | Embed util (startAt/autoplay params) | `utils/embed.ts` |
 
 ## 8. Env reference

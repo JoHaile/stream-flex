@@ -40,6 +40,15 @@ export interface RoomMetaEvent {
   members: number;
 }
 
+/** A watch-party reaction (emoji burst). */
+export interface ReactionEvent {
+  type: "reaction";
+  emoji: string;
+  name: string;
+  id: string;
+  at: string;
+}
+
 export type RoomChannelEvent = PlaybackEvent | RoomMetaEvent;
 
 export async function publishPlayback(roomId: string, event: RoomChannelEvent) {
@@ -47,6 +56,13 @@ export async function publishPlayback(roomId: string, event: RoomChannelEvent) {
   if (!ably) return false;
   // Event name must match what clients subscribe to (PLAYBACK_EVENT).
   await ably.channels.get(roomChannelName(roomId)).publish("playback", event);
+  return true;
+}
+
+export async function publishReaction(roomId: string, event: ReactionEvent) {
+  const ably = getAblyRest();
+  if (!ably) return false;
+  await ably.channels.get(roomChannelName(roomId)).publish("reaction", event);
   return true;
 }
 

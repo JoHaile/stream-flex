@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -16,13 +17,17 @@ import {
   RotateCcw,
   RotateCw,
   Users,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import {
+  createInviteLink,
   getRoomDetailsByCode,
   getPlaybackState,
   hostPlaybackCommand,
   leaveRoom,
+  sendReaction,
 } from "@/lib/cinema/room-actions";
 import { AblyRoomChannel, cinemaChannelName } from "@/lib/cinema/ably-client";
 import type { PlaybackState, RoomDetails } from "@/lib/cinema/types";
@@ -36,6 +41,15 @@ type PlaybackPayload = {
   stateVersion: number;
   stateUpdatedAt?: string;
 };
+
+type FloatingReaction = {
+  key: number;
+  emoji: string;
+  name: string;
+  left: number;
+};
+
+const REACTIONS = ["\u{1F44D}", "\u{2764}", "\u{1F602}", "\u{1F62E}", "\u{1F525}"];
 
 const MODE_LABEL: Record<RoomDetails["mode"], string> = {
   MOVIE_ONLY: "Movie",
@@ -74,11 +88,17 @@ export default function RoomClient({
   const [closing, setClosing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [showInvite, setShowInvite] = useState(justCreated);
+  const [showInvite, setShowInvite] = useState(false);
+  const [freshInviteToken, setFreshInviteToken] = useState<string | null>(null);
   const [seekBuffer, setSeekBuffer] = useState<number | null>(null);
+  const [muted, setMutedState] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
+  const [inCallIds, setInCallIds] = useState<string[]>([]);
 
   const stateVersionRef = useRef(room.playback.stateVersion);
   const channelRef = useRef<AblyRoomChannel | null>(null);
+  const syncingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const player = useCinemaPlayer(room.movieId, {
     position: playback.positionSeconds,
@@ -91,13 +111,45 @@ export default function RoomClient({
     playerRef.current = player;
   }, [player]);
 
-  // Build the full invite URL lazily — window is not defined during SSR, so
-  // this must never run in render. Use a relative path here and resolve the
-  // origin only at copy time (client-only event handler).
   const invitePath = useMemo(() => {
     const base = `/cinema/join/${room.code}`;
-    return inviteToken ? `${base}?t=${inviteToken}` : base;
-  }, [room.code, inviteToken]);
+    const token = inviteToken ?? freshInviteToken;
+    return token ? `${base}?t=${token}` : base;
+  }, [room.code, inviteToken, freshInviteToken]);
+
+  // -------------------------------------------------------------------------
+  // Sound
+  // -------------------------------------------------------------------------
+
+  const changeMuted = useCallback((next: boolean) => {
+    setMutedState(next);
+    playerRef.current.setMuted(next);
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Reactions
+  // -------------------------------------------------------------------------
+
+  const pushReaction = useCallback((emoji: string, name: string) => {
+    const key = Date.now() + Math.random();
+    const left = 10 + Math.round(Math.random() * 70);
+    setReactions((prev) => [...prev.slice(-14), { key, emoji, name, left }]);
+    setTimeout(() => {
+      setReactions((prev) => prev.filter((r) => r.key !== key));
+    }, 3600);
+  }, []);
+
+  const react = useCallback(
+    (emoji: string) => {
+      pushReaction(emoji, session?.user.name ?? "You");
+      void sendReaction(room.id, emoji).then((result) => {
+        if (!result.ok && result.code !== "NOT_CONFIGURED") {
+          setSyncError(result.error);
+        }
+      });
+    },
+    [pushReaction, room.id, session?.user.name],
+  );
 
   // -------------------------------------------------------------------------
   // Applying external playback state (host commands / sync)
@@ -114,6 +166,10 @@ export default function RoomClient({
           position: state.positionSeconds,
           isPlaying: state.isPlaying,
         });
+        // Show a short "syncing" hint while the embed re-mounts.
+        setSyncing(true);
+        if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
+        syncingTimerRef.current = setTimeout(() => setSyncing(false), 1800);
       }
     },
     [isHost],
@@ -132,13 +188,15 @@ export default function RoomClient({
       ably.connect().then((result) => {
         if (disposed) return;
         if (!result.ok) {
-          // Fall back to polling for the rest of this session.
           console.warn("Ably unavailable, polling instead:", result.reason);
           return;
         }
         channelRef.current = ably;
         const debugLog = (label: string, payload?: unknown) => {
-          if (typeof window !== "undefined" && (window as { __CINEMA_DEBUG?: boolean }).__CINEMA_DEBUG) {
+          if (
+            typeof window !== "undefined" &&
+            (window as { __CINEMA_DEBUG?: boolean }).__CINEMA_DEBUG
+          ) {
             console.log(`[cinema-debug] ${label}`, payload ?? "");
           }
         };
@@ -155,6 +213,10 @@ export default function RoomClient({
             });
           }
         });
+        ably!.onReaction((message) => {
+          const data = message.data as { emoji?: string; name?: string };
+          if (data?.emoji) pushReaction(data.emoji, data.name ?? "Someone");
+        });
         ably!.onPresenceJoin((member) => debugLog("presence enter", member.clientId));
         if (userId) {
           ably!.enterPresence().then(() => debugLog("presence entered"));
@@ -167,23 +229,25 @@ export default function RoomClient({
       if (state.ok) {
         applyExternalPlayback(state.data);
         // Drift correction for guests: while the room is "playing", keep the
-        // local player within ~6s of the server-authored position (server
-        // timestamp + elapsed). Conservative, so no seeking on every tick.
+        // local player within ~10s of the server-authored position. More
+        // conservative than before so the embed does not re-mount constantly.
         if (!isHost) {
           const snap = playerRef.current.getSnapshot();
           const target =
             state.data.positionSeconds +
             (Date.now() - Date.parse(state.data.stateUpdatedAt)) / 1000;
-          if (snap.status === "playing" && Math.abs(snap.position - target) > 6) {
+          if (snap.status === "playing" && Math.abs(snap.position - target) > 10) {
             playerRef.current.applyCommand({
               action: "seek",
               position: Math.round(target),
               isPlaying: true,
             });
+            setSyncing(true);
+            if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
+            syncingTimerRef.current = setTimeout(() => setSyncing(false), 1800);
           }
         }
       }
-      // Refresh seat count + participant list periodically.
       const roomState = await getRoomDetailsByCode(room.code);
       if (roomState.ok && !disposed) {
         setDetails((prev) => ({
@@ -215,10 +279,14 @@ export default function RoomClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id, room.realtimeConfigured]);
 
-  // Running clock to re-render the live position readout each second.
+  // Tick (live clock) + keep the sound button in sync with the embed.
   const [, setTick] = useState(0);
   useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 1000);
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+      const snap = playerRef.current.getSnapshot();
+      setMutedState((prev) => (prev === snap.muted ? prev : snap.muted));
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -236,8 +304,6 @@ export default function RoomClient({
         stateVersion: stateVersionRef.current + 1,
         stateUpdatedAt: new Date().toISOString(),
       };
-      // Let the local player lead; the canonical state will arrive via the
-      // action result below (host) or the Ably event (guests).
       playerRef.current.applyCommand({
         action,
         position,
@@ -274,11 +340,11 @@ export default function RoomClient({
       const position = Math.max(
         0,
         Math.floor(
-           playback.positionSeconds +
-             (playback.isPlaying
-               ? (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
-               : 0) +
-             delta,
+          playback.positionSeconds +
+            (playback.isPlaying
+              ? (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
+              : 0) +
+            delta,
         ),
       );
       void sendHostCommand("seek", position);
@@ -295,14 +361,70 @@ export default function RoomClient({
     [isHost, sendHostCommand],
   );
 
+  // Host keyboard shortcuts: Space = play/pause, arrows = ±10s.
+  useEffect(() => {
+    if (!isHost) return;
+    const onKey = (event: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) {
+        return;
+      }
+      if (event.code === "Space") {
+        event.preventDefault();
+        togglePlay();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        seekBy(-10);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        seekBy(10);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isHost, togglePlay, seekBy]);
+
+  // -------------------------------------------------------------------------
+  // Leaving / closing
+  // -------------------------------------------------------------------------
+
   const handleLeave = useCallback(async () => {
     if (closing) return;
+    if (
+      isHost &&
+      !window.confirm(
+        "Close the room for everyone? Your guests will be disconnected from the cinema.",
+      )
+    ) {
+      return;
+    }
     setClosing(true);
     await leaveRoom(room.id);
     router.push("/");
-  }, [closing, room.id, router]);
+  }, [closing, isHost, room.id, router]);
+
+  // If the host closes the tab (or reloads), release the seat and close the
+  // room via a beacon instead of leaving a zombie party behind.
+  useEffect(() => {
+    if (!isHost) return;
+    const onHide = () => {
+      const payload = JSON.stringify({ roomId: room.id });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          "/api/cinema/leave",
+          new Blob([payload], { type: "application/json" }),
+        );
+      }
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, [isHost, room.id]);
 
   const forceSync = useCallback(() => {
+    setSyncing(true);
+    if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
+    syncingTimerRef.current = setTimeout(() => setSyncing(false), 1200);
     playerRef.current.applyCommand({
       action: playback.isPlaying ? "play" : "pause",
       position: playback.positionSeconds,
@@ -312,14 +434,23 @@ export default function RoomClient({
 
   const copyInvite = useCallback(async () => {
     try {
-      const url = `${window.location.origin}${invitePath}`;
+      let token = inviteToken ?? freshInviteToken;
+      if (!token && isHost) {
+        const result = await createInviteLink(room.id);
+        if (result.ok) {
+          token = result.data.token;
+          setFreshInviteToken(token);
+        }
+      }
+      const path = token ? `${invitePath}` : `/cinema/join/${room.code}`;
+      const url = `${window.location.origin}${path}`;
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
-  }, [invitePath]);
+  }, [invitePath, inviteToken, freshInviteToken, isHost, room.id, room.code]);
 
   // -------------------------------------------------------------------------
   // Derived display state
@@ -334,16 +465,17 @@ export default function RoomClient({
   const maxScrub = Math.max(player.snapshot.duration || 0, playback.positionSeconds + 60, 120);
 
   const closed = details.status !== "OPEN";
-  // The call stays useful even after the host closes playback, so only the
-  // room mode and missing LiveKit config gate it.
   const callEnabled = room.mode !== "MOVIE_ONLY" && room.livekitConfigured;
-
+  const inCall = useMemo(
+    () => new Set(inCallIds.map((id) => id.replace(/^sf-/, ""))),
+    [inCallIds],
+  );
 
   return (
-    <main className="min-h-screen bg-black pb-16 pt-28 text-white">
-      <div className="mx-auto max-w-6xl px-4 pt-10 sm:px-6">
+    <main className="min-h-screen bg-black pb-16 pt-20 text-white lg:pt-24">
+      <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
         {/* Header */}
-        <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <button
               onClick={() => router.push("/")}
@@ -371,21 +503,29 @@ export default function RoomClient({
               )}
             </div>
             <p className="mt-1 text-sm text-zinc-400">
-              {room.movieTitle} · hosted by {room.hostName}
+              <Link
+                href={`/movies/${encodeURIComponent(room.movieId)}`}
+                className="font-semibold text-white hover:text-red-400 transition"
+              >
+                {room.movieTitle}
+              </Link>{" "}
+              · hosted by {room.hostName}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowInvite((v) => !v)}
+              onClick={copyInvite}
               className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3.5 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500 hover:text-white transition"
             >
-              <Link2 className="h-4 w-4" />
-              Invite
-              {showInvite ? (
-                <ChevronDown className="h-3.5 w-3.5" />
+              {copied ? (
+                <>
+                  <Copy className="h-4 w-4" /> Copied!
+                </>
               ) : (
-                <ChevronUp className="h-3.5 w-3.5" />
+                <>
+                  <Link2 className="h-4 w-4" /> Copy invite
+                </>
               )}
             </button>
             <button
@@ -403,15 +543,47 @@ export default function RoomClient({
           </div>
         </header>
 
-        {/* Invite panel */}
+        {/* Invite strip (compact, default closed) */}
+        <section className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
+          <span className="text-xs text-zinc-400">Invite friends:</span>
+          {justCreated ? (
+            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-400">
+              New
+            </span>
+          ) : null}
+          <code className="rounded border border-zinc-700 bg-black px-2 py-1 font-mono text-sm tracking-wider text-white">
+            {room.code}
+          </code>
+          <button
+            onClick={copyInvite}
+            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-500 transition"
+          >
+            <Link2 className="h-3 w-3" />
+            {copied ? "Copied!" : "Copy link"}
+          </button>
+          <button
+            onClick={() => setShowInvite((v) => !v)}
+            aria-expanded={showInvite}
+            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-white transition"
+          >
+            Invite details
+            {showInvite ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+          </button>
+        </section>
+
+        {/* Invite details */}
         {showInvite ? (
-          <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-5">
+          <section className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-bold text-white">Invite your friends</p>
                 <p className="mt-0.5 text-xs text-zinc-500">
-                  They need a StreamFlix account to join. Anyone with the code can
-                  enter this room.
+                  They need a StreamFlix account to join. The code alone also
+                  works — nothing to type into a URL, just share it.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -439,22 +611,24 @@ export default function RoomClient({
 
         {/* Realtime hint */}
         {!room.realtimeConfigured ? (
-          <div className="mb-6 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-300">
+          <div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-300">
             <strong>Polling mode.</strong> Host controls refresh every few
-            seconds — realtime sync (Ably) isn&rsquo;t configured on this
-            server. Voice and video are disabled.
+            seconds — realtime sync (Ably) isn&rsquo;t configured on this server. Voice
+            and video are disabled.
           </div>
         ) : null}
 
         {syncError ? (
-          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
             {syncError}
           </div>
         ) : null}
 
         {closed ? (
-          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
-            The host has closed this room. Playback controls are disabled.
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+            {isHost
+              ? "You closed this room. Guests can no longer join."
+              : "The host has closed this room. Playback controls are disabled."}
           </div>
         ) : null}
 
@@ -472,97 +646,224 @@ export default function RoomClient({
                   className="h-full w-full"
                 />
               ) : null}
-              {player.status === "paused" && playback.positionSeconds > 0 && !playback.isPlaying ? (
+
+              {muted && player.src ? (
+                <button
+                  onClick={() => changeMuted(false)}
+                  className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-2 rounded-full bg-black/80 px-3.5 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-black"
+                >
+                  <VolumeX className="h-4 w-4" />
+                  Tap to enable sound
+                </button>
+              ) : null}
+
+              {player.status === "paused" &&
+              playback.positionSeconds > 0 &&
+              !playback.isPlaying &&
+              isHost ? (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/60">
                   <button
                     onClick={togglePlay}
-                    disabled={!isHost || closed}
-                    className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white shadow-xl hover:bg-red-500 transition disabled:opacity-50"
+                    className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white shadow-xl hover:bg-red-500 transition"
                     aria-label="Play"
                   >
                     <Play className="ml-0.5 h-6 w-6" />
                   </button>
                 </div>
               ) : null}
+
+              {syncing ? (
+                <div className="pointer-events-none absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 backdrop-blur">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Syncing with host…
+                </div>
+              ) : null}
+
+              {/* Reaction burst */}
+              <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+                {reactions.map((r) => (
+                  <span
+                    key={r.key}
+                    className="reaction-float absolute bottom-2 text-3xl leading-none"
+                    style={{ left: `${r.left}%` }}
+                    title={r.name}
+                  >
+                    {r.emoji}
+                  </span>
+                ))}
+              </div>
             </div>
 
-            {/* Host controls */}
+            {/* Playback controls / guest status */}
             <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-              <div className="mb-1 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  {isHost
-                    ? "Host controls — everyone follows you"
-                    : "The host controls playback for everyone"}
-                </p>
-                <span className="font-mono text-sm text-zinc-200">
-                  {formatTime(positionSeconds)} /{" "}
-                  {player.snapshot.duration > 0
-                    ? formatTime(player.snapshot.duration)
-                    : "--:--"}
-                </span>
-              </div>
+              {isHost ? (
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Host controls — everyone follows you
+                  </p>
+                  <span className="font-mono text-sm text-zinc-200">
+                    {formatTime(positionSeconds)} /{" "}
+                    {player.snapshot.duration > 0
+                      ? formatTime(player.snapshot.duration)
+                      : "--:--"}
+                  </span>
+                </div>
+              ) : (
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    The host controls playback for everyone
+                  </p>
+                  <span className="font-mono text-sm text-zinc-200">
+                    {formatTime(positionSeconds)} /{" "}
+                    {player.snapshot.duration > 0
+                      ? formatTime(player.snapshot.duration)
+                      : "--:--"}
+                  </span>
+                </div>
+              )}
 
-              <input
-                type="range"
-                min={0}
-                max={Math.floor(maxScrub)}
-                step={1}
-                value={Math.floor(
-                  seekBuffer ?? (playback.isPlaying ? positionSeconds : playback.positionSeconds),
-                )}
-                onChange={(e) => setSeekBuffer(Number(e.target.value))}
-                onPointerUp={(e) => commitSeek(Number((e.target as HTMLInputElement).value))}
-                onKeyUp={(e) => {
-                  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                    commitSeek(Number((e.target as HTMLInputElement).value));
-                  }
-                }}
-                disabled={!isHost || closed}
-                className="mt-2 w-full accent-red-500 disabled:opacity-40"
-                aria-label="Seek"
-              />
-
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <button
-                  onClick={() => seekBy(-30)}
-                  disabled={!isHost || closed}
-                  className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
-                >
-                  <RotateCcw className="h-4 w-4" /> 30s
-                </button>
-                <button
-                  onClick={togglePlay}
-                  disabled={!isHost || closed}
-                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-red-600 px-6 text-sm font-bold text-white hover:bg-red-500 transition disabled:opacity-40"
-                >
-                  {playback.isPlaying ? (
-                    <>
-                      <Pause className="h-4 w-4" /> Pause
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4" /> Play
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => seekBy(30)}
-                  disabled={!isHost || closed}
-                  className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
-                >
-                  30s <RotateCw className="h-4 w-4" />
-                </button>
-                {!isHost ? (
-                  <button
-                    onClick={forceSync}
-                    title="Re-sync to the host"
+              {isHost ? (
+                <>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.floor(maxScrub)}
+                    step={1}
+                    value={Math.floor(
+                      seekBuffer ??
+                        (playback.isPlaying
+                          ? positionSeconds
+                          : playback.positionSeconds),
+                    )}
+                    onChange={(e) => setSeekBuffer(Number(e.target.value))}
+                    onPointerUp={(e) =>
+                      commitSeek(Number((e.target as HTMLInputElement).value))
+                    }
+                    onKeyUp={(e) => {
+                      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                        commitSeek(Number((e.target as HTMLInputElement).value));
+                      }
+                    }}
                     disabled={closed}
-                    className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </button>
-                ) : null}
-              </div>
+                    className="mt-2 w-full accent-red-500 disabled:opacity-40"
+                    aria-label="Seek"
+                  />
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      onClick={() => seekBy(-30)}
+                      disabled={closed}
+                      className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
+                    >
+                      <RotateCcw className="h-4 w-4" /> 30s
+                    </button>
+                    <button
+                      onClick={togglePlay}
+                      disabled={closed}
+                      className="inline-flex h-11 items-center gap-2 rounded-lg bg-red-600 px-6 text-sm font-bold text-white hover:bg-red-500 transition disabled:opacity-40"
+                    >
+                      {playback.isPlaying ? (
+                        <>
+                          <Pause className="h-4 w-4" /> Pause
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4" /> Play
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => seekBy(30)}
+                      disabled={closed}
+                      className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
+                    >
+                      30s <RotateCw className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => changeMuted(!muted)}
+                      aria-pressed={!muted}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                        muted
+                          ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                          : "bg-zinc-200 text-black hover:bg-white"
+                      }`}
+                    >
+                      {muted ? (
+                        <VolumeX className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                      {muted ? "Sound off" : "Sound on"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-center text-[11px] text-zinc-600">
+                    Shortcuts: Space = play/pause · ←/→ = seek 10s
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-300">
+                    {closed
+                      ? "This room is closed."
+                      : playback.isPlaying
+                        ? "Host is playing — your player follows along."
+                        : playback.positionSeconds > 0
+                          ? "Host has paused the movie."
+                          : "Waiting for the host to start the movie…"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      onClick={forceSync}
+                      disabled={closed}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3.5 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
+                      />
+                      Re-sync with host
+                    </button>
+                    <button
+                      onClick={() => changeMuted(!muted)}
+                      aria-pressed={!muted}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                        muted
+                          ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                          : "bg-zinc-200 text-black hover:bg-white"
+                      }`}
+                    >
+                      {muted ? (
+                        <VolumeX className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                      {muted ? "Unmute movie" : "Mute movie"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Reactions */}
+              {room.realtimeConfigured ? (
+                <div className="mt-3 flex items-center gap-1.5 border-t border-zinc-800 pt-3">
+                  <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                    React
+                  </span>
+                  {REACTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => react(emoji)}
+                      aria-label={`React with ${emoji}`}
+                      className="h-8 w-8 rounded-full bg-zinc-800 text-base transition hover:scale-110 hover:bg-zinc-700"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                  <span className="ml-auto text-[11px] text-zinc-600">
+                    Everyone in the room sees your reaction
+                  </span>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -572,6 +873,7 @@ export default function RoomClient({
               <CallPanel
                 room={{ ...details, livekitConfigured: true }}
                 initialChoice={initialCallChoice ?? undefined}
+                onInCallChange={setInCallIds}
               />
             ) : null}
 
@@ -587,9 +889,15 @@ export default function RoomClient({
                 {details.participants.map((participant) => (
                   <li key={participant.id} className="flex items-center gap-2 text-sm">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600/20 text-[10px] font-bold text-red-400">
-                      {participant.role === "HOST" ? "H" : (participant.name[0] ?? "?").toUpperCase()}
+                      {(participant.name[0] ?? "?").toUpperCase()}
                     </span>
                     <span className="truncate text-zinc-300">{participant.name}</span>
+                    {inCall.has(participant.id) ? (
+                      <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-400">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                        In call
+                      </span>
+                    ) : null}
                     {participant.role === "HOST" ? (
                       <span className="ml-auto rounded bg-red-600/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-400">
                         Host
@@ -599,16 +907,16 @@ export default function RoomClient({
                 ))}
               </ul>
               <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">
-                You are {isHost ? "the host" : "a guest"}. Guests watch their own
-                player — the movie streams from your own player to you, never
-                through the room.
+                You are {isHost ? "the host" : "a guest"}. Guests watch their
+                own player — the movie streams to you directly, never through the
+                room.
               </p>
             </div>
 
             {room.livekitConfigured === false && room.mode !== "MOVIE_ONLY" ? (
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 text-xs text-zinc-500">
-                Voice &amp; video were requested for this room, but LiveKit isn&rsquo;t
-                configured on this server yet.
+                Voice &amp; video were requested for this room, but LiveKit
+                isn&rsquo;t configured on this server yet.
               </div>
             ) : null}
           </aside>

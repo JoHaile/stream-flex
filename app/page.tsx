@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import MediaRow from "@/components/shared/MediaRow";
+import HomeJoinCard from "@/components/cinema/HomeJoinCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getFeedSection, getLatestSection, getMediaHref, getSectionTitle } from "@/utils/catalog";
@@ -108,11 +109,16 @@ export default async function HomePage() {
       ) : null}
 
       <div className="page-container space-y-10 py-8">
-        <MediaRow
-          title="Trending Now"
-          items={trendingAll}
-          seeAllHref="/discover/movie/trending"
-        />
+        <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-start">
+          <MediaRow
+            title="Trending Now"
+            items={trendingAll}
+            seeAllHref="/discover/movie/trending"
+          />
+          <div className="lg:pt-10">
+            <HomeJoinCard />
+          </div>
+        </div>
 
         <MediaRow
           title="Popular Movies"

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BellIcon, Clapperboard, Menu, XIcon } from "lucide-react";
+import { BellIcon, Clapperboard, DoorOpen, Menu, XIcon } from "lucide-react";
 import {
   Drawer,
   DrawerTrigger,
@@ -15,6 +15,7 @@ import {
 import type { SearchResultItem } from "@/utils/catalog";
 import Image from "next/image";
 import SearchCommand from "@/components/shared/SearchCommand";
+import JoinByCode from "@/components/cinema/JoinByCode";
 import {
   signOut,
   useSession,
@@ -308,12 +309,19 @@ const NavActions = ({
 function NavBar() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const close = () => setShowJoin(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
   }, []);
 
   const links = [
@@ -344,6 +352,24 @@ function NavBar() {
 
         <div className="hidden md:flex items-center gap-3">
           <NavSearch />
+          <div
+            className="relative"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowJoin((v) => !v)}
+              aria-expanded={showJoin}
+              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 px-3.5 py-1.5 text-xs font-bold text-zinc-300 hover:border-zinc-500 hover:text-white transition"
+            >
+              <DoorOpen className="w-3.5 h-3.5" />
+              Join
+            </button>
+            {showJoin ? (
+              <div className="absolute right-0 top-full mt-2 z-50 rounded-xl border border-zinc-700 bg-zinc-900 p-2 shadow-2xl">
+                <JoinByCode variant="nav" />
+              </div>
+            ) : null}
+          </div>
           <Link
             href="/cinema/create"
             className="inline-flex items-center gap-1.5 rounded-full border border-red-500/50 px-3.5 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition"
@@ -372,6 +398,7 @@ function NavBar() {
               <div className="flex flex-col gap-6 p-4 pt-0">
                 <NavLinks pathname={pathname} links={links} isMobile />
                 <div className="h-px bg-zinc-800" />
+                <JoinByCode variant="card" />
                 <Link
                   href="/cinema/create"
                   className="inline-flex items-center gap-2 rounded-lg border border-red-500/50 px-4 py-2.5 text-sm font-bold text-red-400 hover:bg-red-500 hover:text-white transition"
