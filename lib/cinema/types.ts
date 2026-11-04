@@ -52,6 +52,8 @@ export interface ChatMessage {
   name: string;
   body: string;
   at: string;
+  /** "system" entries are presence-derived ("X joined") and never stored. */
+  kind?: "user" | "system";
 }
 
 /** Full authorized room payload for the room page. */

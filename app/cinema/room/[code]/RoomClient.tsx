@@ -103,8 +103,18 @@ export default function RoomClient({
   const [chatInput, setChatInput] = useState("");
   const [chatOpen, setChatOpen] = useState(true);
   const [chatSending, setChatSending] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
   const chatListRef = useRef<HTMLDivElement | null>(null);
+  const chatCardRef = useRef<HTMLDivElement | null>(null);
+  const chatVisibleRef = useRef(true);
+  const chatOpenRef = useRef(true);
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+  }, [chatOpen]);
   const knownMessageIds = useRef(new Set(room.messages?.map((m) => m.id) ?? []));
+  const knownPresence = useRef(new Set<string>(room.participants.map((p) => p.id)));
+  const nameByIdRef = useRef(new Map(room.participants.map((p) => [p.id, p.name])));
+  const systemSeq = useRef(0);
 
   const stateVersionRef = useRef(room.playback.stateVersion);
   const channelRef = useRef<AblyRoomChannel | null>(null);
@@ -140,16 +150,61 @@ export default function RoomClient({
   // Chat
   // -------------------------------------------------------------------------
 
-  const appendMessage = useCallback((message: ChatMessage) => {
-    if (knownMessageIds.current.has(message.id)) return;
-    knownMessageIds.current.add(message.id);
-    setMessages((prev) => [...prev.slice(-99), message]);
-  }, []);
-
-  const unreadChat = useMemo(
-    () => (chatOpen ? 0 : messages.filter((m) => m.userId !== userId).length),
-    [chatOpen, messages, userId],
+  const appendMessage = useCallback(
+    (message: ChatMessage) => {
+      if (knownMessageIds.current.has(message.id)) return;
+      knownMessageIds.current.add(message.id);
+      setMessages((prev) => [...prev.slice(-119), message]);
+      if (
+        message.kind !== "system" &&
+        message.userId !== userId &&
+        (!chatVisibleRef.current || !chatOpenRef.current)
+      ) {
+        setUnreadChat((n) => n + 1);
+      }
+    },
+    [userId],
   );
+
+  // Presence-derived chat lines ("Alex joined the room"). Ephemeral: they are
+  // never persisted, so a reload only shows the real message history.
+  const announcePresence = useCallback(
+    (body: string) => {
+      systemSeq.current += 1;
+      appendMessage({
+        id: `sys-${Date.now()}-${systemSeq.current}`,
+        userId: "",
+        name: "",
+        body,
+        at: new Date().toISOString(),
+        kind: "system",
+      });
+    },
+    [appendMessage],
+  );
+
+  useEffect(() => {
+    for (const participant of details.participants) {
+      nameByIdRef.current.set(participant.id, participant.name);
+    }
+  }, [details.participants]);
+
+  useEffect(() => {
+    const el = chatCardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some(
+          (entry) => entry.isIntersecting && entry.intersectionRatio > 0.25,
+        );
+        chatVisibleRef.current = visible;
+        if (visible && chatOpenRef.current) setUnreadChat(0);
+      },
+      { threshold: [0, 0.25, 0.5] },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const sendChat = useCallback(async () => {
     const text = chatInput.trim();
@@ -276,9 +331,39 @@ export default function RoomClient({
             });
           }
         });
-        ably!.onPresenceJoin((member) => debugLog("presence enter", member.clientId));
+        ably!.onPresenceJoin((member) => {
+          debugLog("presence enter", member.clientId);
+          const id = member.clientId ?? "";
+          if (!id || id === userId) return;
+          if (knownPresence.current.has(id)) return;
+          knownPresence.current.add(id);
+          const data = member.data as { name?: string } | undefined;
+          const name = data?.name || nameByIdRef.current.get(id) || "Someone";
+          announcePresence(`${name} joined the room`);
+        });
+        ably!.onPresenceLeave((member) => {
+          debugLog("presence leave", member.clientId);
+          const id = member.clientId ?? "";
+          if (!id || id === userId) return;
+          if (!knownPresence.current.has(id)) return;
+          knownPresence.current.delete(id);
+          const data = member.data as { name?: string } | undefined;
+          const name = data?.name || nameByIdRef.current.get(id) || "Someone";
+          announcePresence(`${name} left the room`);
+        });
         if (userId) {
-          ably!.enterPresence().then(() => debugLog("presence entered"));
+          // Seed known members from the presence snapshot so people who were
+          // already here are not announced as "joined" when we connect.
+          ably!.listPresence().then((members) => {
+            for (const member of members) {
+              if (member.clientId && member.clientId !== userId) {
+                knownPresence.current.add(member.clientId);
+              }
+            }
+          });
+          ably!
+            .enterPresence({ name: session?.user.name ?? "Guest" })
+            .then(() => debugLog("presence entered"));
         }
       });
     }
@@ -584,6 +669,26 @@ export default function RoomClient({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setChatOpen(true);
+                setUnreadChat(0);
+                chatCardRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "nearest",
+                });
+              }}
+              aria-label="Room chat"
+              className="relative inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3.5 py-2 text-sm font-semibold text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Chat</span>
+              {unreadChat > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                  {unreadChat > 9 ? "9+" : unreadChat}
+                </span>
+              ) : null}
+            </button>
             <button
               onClick={copyInvite}
               className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3.5 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-500 hover:text-white transition"
@@ -983,10 +1088,17 @@ export default function RoomClient({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60">
+            <div
+              ref={chatCardRef}
+              className="rounded-2xl border border-zinc-800 bg-zinc-900/60"
+            >
               <button
                 type="button"
-                onClick={() => setChatOpen((v) => !v)}
+                onClick={() => {
+                  const next = !chatOpen;
+                  setChatOpen(next);
+                  if (next) setUnreadChat(0);
+                }}
                 aria-expanded={chatOpen}
                 className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-zinc-800/40"
               >
@@ -998,7 +1110,10 @@ export default function RoomClient({
                   </span>
                 ) : (
                   <span className="ml-auto text-[11px] text-zinc-500">
-                    {messages.length} message{messages.length === 1 ? "" : "s"}
+                    {messages.filter((m) => m.kind !== "system").length} message
+                    {messages.filter((m) => m.kind !== "system").length === 1
+                      ? ""
+                      : "s"}
                   </span>
                 )}
               </button>
@@ -1016,6 +1131,16 @@ export default function RoomClient({
                       </p>
                     ) : (
                       messages.map((m) => {
+                        if (m.kind === "system") {
+                          return (
+                            <p
+                              key={m.id}
+                              className="text-center text-[11px] leading-relaxed text-zinc-500"
+                            >
+                              {m.body}
+                            </p>
+                          );
+                        }
                         const mine = m.userId === userId;
                         return (
                           <div

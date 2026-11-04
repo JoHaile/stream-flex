@@ -196,6 +196,14 @@ is **no documented parent→player command API**, so:
       capped at 500 chars, rate-limited (8 per 10 s), persisted in
       `room_message` and **deleted when the room closes**; a closed room
       disables the input.
+- [ ] Chat system lines: Ably presence drives "**{name} joined the room**" /
+      "**{name} left the room**" entries (subtle centered lines, not counted
+      as messages, never persisted). People already present when you connect
+      are not announced. A leave can lag up to Ably's disconnect timeout if
+      the tab dies without a clean close.
+- [ ] Unread badge: a red count sits on the header **Chat** button when
+      messages arrive while the chat is collapsed or off-screen (mobile);
+      opening chat clears it and scrolls the card into view.
 - [ ] Seek to a position beyond the movie → scrubs clamp to ≥ 0; server
       parser rejects non-numeric positions.
 - [ ] Server action abuse: a guest calling `hostPlaybackCommand` directly
@@ -240,9 +248,11 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
   who's-online is approximated by the DB member list refreshed every few
   seconds, and reactions are hidden (server returns `NOT_CONFIGURED`).
 - **Chat** is room-scoped and ephemeral (messages are deleted when the room
-  closes); there is no DM, no history beyond the open room, and no emoji
-  formatting — plain text + line breaks only. Starting muted is
-  intentional (autoplay rules; unmute requires a user gesture).
+  closes); there is no DM, history beyond the open room is DB-backed, and
+  no emoji formatting — plain text + line breaks only. Presence join/leave
+  lines need Ably and are ephemeral by design (no history after a reload).
+  Starting muted is intentional (autoplay rules; unmute requires a user
+  gesture).
 
 ## 7. Key files
 
@@ -255,7 +265,7 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
 | Cinema domain types/ids | `lib/cinema/types.ts`, `lib/cinema/ids.ts` |
 | Server actions (create/join/control/tokens/reactions/invites/chat) | `lib/cinema/room-actions.ts` (`sendReaction`, `createInviteLink`, `getLiveKitToken`, `sendChatMessage`, `getChatMessages`) |
 | Ably server REST helper | `lib/cinema/realtime.ts` (`publishReaction`, `publishChatMessage`) |
-| Ably client | `lib/cinema/ably-client.ts` (`onReaction`, `onChat`) |
+| Ably client | `lib/cinema/ably-client.ts` (`onReaction`, `onChat`, `onPresenceJoin/Leave`, `listPresence`) |
 | LiveKit tokens | `lib/cinema/livekit.ts` |
 | Player adapter hook (muted state, `setMuted`) | `components/cinema/useCinemaPlayer.ts` |
 | Voice/video call panel (+ mobile fixed bar, in-call reporting) | `components/cinema/CallPanel.tsx` |
@@ -263,7 +273,7 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
 | Room page client (guest status card, reactions, shortcuts, beacon) | `app/cinema/room/[code]/RoomClient.tsx` |
 | Join page (server artwork + client) | `app/cinema/join/[code]/page.tsx`, `JoinRoomClient.tsx` |
 | Host-exit beacon route | `app/api/cinema/leave/route.ts` |
-| Chat persistence | `prisma/schema.prisma` (`RoomMessage` → `room_message`) |
+| Chat persistence + presence system lines | `prisma/schema.prisma` (`RoomMessage` → `room_message`), `app/cinema/room/[code]/RoomClient.tsx` (presence→chat, unread badge) |
 | Other UI pages | `app/cinema/create/` |
 | Embed util (startAt/autoplay params) | `utils/embed.ts` |
 

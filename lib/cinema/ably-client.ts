@@ -92,11 +92,27 @@ export class AblyRoomChannel {
     return () => this.channel?.presence.unsubscribe("enter", callback);
   }
 
-  async enterPresence() {
-    // The token already pins the clientId (the user's id); entering with no
-    // args uses that identity. Passing our own string here would be treated
-    // as presence *data*, not a clientId.
-    await this.channel?.presence.enter();
+  onPresenceLeave(callback: (member: PresenceMessage) => void) {
+    if (!this.channel) return () => undefined;
+    this.channel.presence.subscribe("leave", callback);
+    return () => this.channel?.presence.unsubscribe("leave", callback);
+  }
+
+  /** Snapshot of clients currently present in the room channel. */
+  async listPresence(): Promise<PresenceMessage[]> {
+    try {
+      const members = await this.channel?.presence.get();
+      return members ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  async enterPresence(data?: Record<string, unknown>) {
+    // The token already pins the clientId (the user's id); passing our own
+    // string here would be treated as presence *data*, not a clientId. Any
+    // extra data (e.g. display name for system messages) rides along.
+    await this.channel?.presence.enter(data);
   }
 
   async leavePresence() {
