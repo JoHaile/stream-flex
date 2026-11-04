@@ -29,6 +29,7 @@ model User {
   accounts        Account[]
   hostedRooms     CinemaRoom[]      @relation("RoomHost")
   roomMemberships RoomMembership[]
+  roomMessages    RoomMessage[]
 
   @@map("user")
 }
@@ -124,6 +125,7 @@ model CinemaRoom {
 
   memberships    RoomMembership[]
   invitations    RoomInvitation[]
+  messages       RoomMessage[]
 
   @@index([status, mode])
   @@map("cinema_room")
@@ -155,4 +157,17 @@ model RoomInvitation {
 
   @@index([roomId])
   @@map("room_invitation")
+}
+
+model RoomMessage {
+  id        String     @id @default(cuid())
+  roomId    String
+  room      CinemaRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime   @default(now())
+
+  @@index([roomId, createdAt])
+  @@map("room_message")
 }

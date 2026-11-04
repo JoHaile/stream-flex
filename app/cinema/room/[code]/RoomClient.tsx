@@ -11,11 +11,13 @@ import {
   Link2,
   LoaderCircle,
   LogOut,
+  MessageCircle,
   Pause,
   Play,
   RefreshCw,
   RotateCcw,
   RotateCw,
+  Send,
   Users,
   Volume2,
   VolumeX,
@@ -27,10 +29,12 @@ import {
   getPlaybackState,
   hostPlaybackCommand,
   leaveRoom,
+  sendChatMessage,
   sendReaction,
 } from "@/lib/cinema/room-actions";
 import { AblyRoomChannel, cinemaChannelName } from "@/lib/cinema/ably-client";
-import type { PlaybackState, RoomDetails } from "@/lib/cinema/types";
+import type { ChatMessage, PlaybackState, RoomDetails } from "@/lib/cinema/types";
+import { CHAT_MAX_LENGTH } from "@/lib/cinema/types";
 import { useCinemaPlayer } from "@/components/cinema/useCinemaPlayer";
 import CallPanel from "@/components/cinema/CallPanel";
 
@@ -95,6 +99,12 @@ export default function RoomClient({
   const [syncing, setSyncing] = useState(false);
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   const [inCallIds, setInCallIds] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(room.messages ?? []);
+  const [chatInput, setChatInput] = useState("");
+  const [chatOpen, setChatOpen] = useState(true);
+  const [chatSending, setChatSending] = useState(false);
+  const chatListRef = useRef<HTMLDivElement | null>(null);
+  const knownMessageIds = useRef(new Set(room.messages?.map((m) => m.id) ?? []));
 
   const stateVersionRef = useRef(room.playback.stateVersion);
   const channelRef = useRef<AblyRoomChannel | null>(null);
@@ -127,8 +137,45 @@ export default function RoomClient({
   }, []);
 
   // -------------------------------------------------------------------------
-  // Reactions
+  // Chat
   // -------------------------------------------------------------------------
+
+  const appendMessage = useCallback((message: ChatMessage) => {
+    if (knownMessageIds.current.has(message.id)) return;
+    knownMessageIds.current.add(message.id);
+    setMessages((prev) => [...prev.slice(-99), message]);
+  }, []);
+
+  const unreadChat = useMemo(
+    () => (chatOpen ? 0 : messages.filter((m) => m.userId !== userId).length),
+    [chatOpen, messages, userId],
+  );
+
+  const sendChat = useCallback(async () => {
+    const text = chatInput.trim();
+    if (!text || chatSending) return;
+    setChatSending(true);
+    setChatInput("");
+    try {
+      const result = await sendChatMessage(room.id, text);
+      if (result.ok) {
+        appendMessage(result.data);
+      } else {
+        // Put the text back so nothing is silently lost.
+        setChatInput((prev) => (prev ? prev : text));
+        setSyncError(result.error);
+      }
+    } finally {
+      setChatSending(false);
+      requestAnimationFrame(() => {
+        chatListRef.current?.scrollTo({
+          top: chatListRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      });
+    }
+  }, [appendMessage, chatInput, chatSending, room.id]);
+
 
   const pushReaction = useCallback((emoji: string, name: string) => {
     const key = Date.now() + Math.random();
@@ -217,6 +264,18 @@ export default function RoomClient({
           const data = message.data as { emoji?: string; name?: string };
           if (data?.emoji) pushReaction(data.emoji, data.name ?? "Someone");
         });
+        ably!.onChat((message) => {
+          const data = message.data as Partial<ChatMessage> & { name?: string };
+          if (data && data.id && typeof data.body === "string") {
+            appendMessage({
+              id: data.id,
+              userId: data.userId ?? "",
+              name: data.name ?? "Guest",
+              body: data.body,
+              at: data.at ?? new Date().toISOString(),
+            });
+          }
+        });
         ably!.onPresenceJoin((member) => debugLog("presence enter", member.clientId));
         if (userId) {
           ably!.enterPresence().then(() => debugLog("presence entered"));
@@ -256,6 +315,8 @@ export default function RoomClient({
           members: roomState.data.members,
           participants: roomState.data.participants,
         }));
+        // Catch-up for polling mode (no Ably push): merge any new messages.
+        roomState.data.messages.forEach(appendMessage);
       }
     }, 5000);
 
@@ -431,6 +492,15 @@ export default function RoomClient({
       isPlaying: playback.isPlaying,
     });
   }, [playback]);
+
+  // Auto-scroll chat while the user is already at the bottom.
+  useEffect(() => {
+    if (!chatOpen) return;
+    const el = chatListRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
+  }, [messages, chatOpen]);
 
   const copyInvite = useCallback(async () => {
     try {
@@ -911,6 +981,110 @@ export default function RoomClient({
                 own player — the movie streams to you directly, never through the
                 room.
               </p>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60">
+              <button
+                type="button"
+                onClick={() => setChatOpen((v) => !v)}
+                aria-expanded={chatOpen}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left transition hover:bg-zinc-800/40"
+              >
+                <MessageCircle className="h-4 w-4 text-zinc-400" />
+                <span className="text-sm font-bold text-white">Room chat</span>
+                {!chatOpen && unreadChat > 0 ? (
+                  <span className="ml-auto rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {unreadChat}
+                  </span>
+                ) : (
+                  <span className="ml-auto text-[11px] text-zinc-500">
+                    {messages.length} message{messages.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </button>
+              {chatOpen ? (
+                <div className="border-t border-zinc-800 p-3">
+                  <div
+                    ref={chatListRef}
+                    aria-live="polite"
+                    className="h-56 space-y-2.5 overflow-y-auto pr-1"
+                  >
+                    {messages.length === 0 ? (
+                      <p className="text-xs leading-relaxed text-zinc-500">
+                        Say hi 👋 — everyone in the room sees your
+                        messages live.
+                      </p>
+                    ) : (
+                      messages.map((m) => {
+                        const mine = m.userId === userId;
+                        return (
+                          <div
+                            key={m.id}
+                            className={`rounded-lg px-2.5 py-1.5 text-sm ${
+                              mine
+                                ? "bg-red-600/10 ring-1 ring-red-500/20"
+                                : "bg-zinc-800/60"
+                            }`}
+                          >
+                            <div className="mb-0.5 flex items-baseline gap-2">
+                              <span
+                                className={`truncate text-[11px] font-bold ${
+                                  mine ? "text-red-300" : "text-zinc-300"
+                                }`}
+                              >
+                                {mine ? "You" : m.name}
+                              </span>
+                              <span className="ml-auto shrink-0 text-[10px] text-zinc-500">
+                                {new Date(m.at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="whitespace-pre-wrap break-words text-zinc-100">
+                              {m.body}
+                            </p>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void sendChat();
+                    }}
+                    className="mt-2 flex items-center gap-2"
+                  >
+                    <input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      maxLength={CHAT_MAX_LENGTH}
+                      placeholder={closed ? "Room closed" : "Message the room…"}
+                      disabled={closed}
+                      aria-label="Chat message"
+                      className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/30 disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={closed || !chatInput.trim() || chatSending}
+                      aria-label="Send message"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white transition hover:bg-red-500 disabled:opacity-40"
+                    >
+                      {chatSending ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </button>
+                  </form>
+                  {closed ? (
+                    <p className="mt-1.5 text-[11px] text-zinc-500">
+                      Chat is closed with the room.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             {room.livekitConfigured === false && room.mode !== "MOVIE_ONLY" ? (

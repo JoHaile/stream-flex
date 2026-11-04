@@ -16,6 +16,7 @@ export function cinemaChannelName(roomId: string) {
 export const PLAYBACK_EVENT = "playback" as const;
 export const MEMBERS_EVENT = "members" as const;
 export const REACTION_EVENT = "reaction" as const;
+export const CHAT_EVENT = "chat" as const;
 
 export class AblyRoomChannel {
   private ably: Ably.Realtime | null = null;
@@ -77,6 +78,12 @@ export class AblyRoomChannel {
     if (!this.channel) return () => undefined;
     this.channel.subscribe(REACTION_EVENT, callback);
     return () => this.channel?.unsubscribe(REACTION_EVENT, callback);
+  }
+
+  onChat(callback: (message: Message) => void) {
+    if (!this.channel) return () => undefined;
+    this.channel.subscribe(CHAT_EVENT, callback);
+    return () => this.channel?.unsubscribe(CHAT_EVENT, callback);
   }
 
   onPresenceJoin(callback: (member: PresenceMessage) => void) {

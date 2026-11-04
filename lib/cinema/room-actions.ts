@@ -6,13 +6,23 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { auth, type Session } from "@/lib/auth";
 import { generateInviteToken, generateRoomCode, hashInviteToken } from "@/lib/cinema/ids";
-import { isAblyConfigured, getAblyRest, publishPlayback, publishReaction, roomCapabilities } from "@/lib/cinema/realtime";
+import {
+  isAblyConfigured,
+  getAblyRest,
+  publishPlayback,
+  publishChatMessage,
+  publishReaction,
+  roomCapabilities,
+} from "@/lib/cinema/realtime";
 import { isLiveKitConfigured, createLiveKitToken, livekitRoomName } from "@/lib/cinema/livekit";
 import {
+  CHAT_HISTORY_LIMIT,
+  CHAT_MAX_LENGTH,
   INVITE_TOKEN_TTL_MS,
   MAX_CAPACITY,
   MIN_CAPACITY,
   PLAYBACK_ACTIONS,
+  type ChatMessage,
   type PlaybackAction,
   type PlaybackState,
   type RoomCreatedResult,
@@ -254,6 +264,85 @@ export async function sendReaction(
 }
 
 /**
+ * Post a chat message to the room. Persisted in Postgres (late joiners and
+ * polling-mode clients see history) and fanned out over Ably when available.
+ */
+export async function sendChatMessage(
+  roomId: string,
+  body: unknown,
+): Promise<ActionResult<ChatMessage>> {
+  try {
+    const user = await requireUser();
+    const text = typeof body === "string" ? body.trim() : "";
+    if (!text) return fail("Write a message first.", "INVALID_MESSAGE");
+    if (text.length > CHAT_MAX_LENGTH) {
+      return fail(
+        `Messages are limited to ${CHAT_MAX_LENGTH} characters.`,
+        "INVALID_MESSAGE",
+      );
+    }
+    assertRateLimit(`chat:${user.id}`, 10_000, 8);
+
+    const membership = await db.roomMembership.findUnique({
+      where: { roomId_userId: { roomId, userId: user.id } },
+      include: { room: { select: { status: true } } },
+    });
+    if (!membership) return fail("You are not part of this room.", "NOT_MEMBER");
+    if (membership.room.status !== "OPEN") {
+      return fail("This room is closed.", "ROOM_CLOSED");
+    }
+
+    const saved = await db.roomMessage.create({
+      data: { roomId, userId: user.id, body: text },
+    });
+    const message: ChatMessage = {
+      id: saved.id,
+      userId: user.id,
+      name: user.name ?? "Guest",
+      body: saved.body,
+      at: saved.createdAt.toISOString(),
+    };
+
+    if (isAblyConfigured()) {
+      await publishChatMessage(roomId, {
+        type: "chat",
+        ...message,
+        roomId,
+      }).catch(() => {});
+    }
+
+    return ok(message);
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+/** Recent chat history — used by polling clients and manual catch-up. */
+export async function getChatMessages(
+  roomId: string,
+  limit = 30,
+): Promise<ActionResult<ChatMessage[]>> {
+  try {
+    const user = await requireUser();
+    const membership = await db.roomMembership.findUnique({
+      where: { roomId_userId: { roomId, userId: user.id } },
+    });
+    if (!membership) return fail("You are not part of this room.", "NOT_MEMBER");
+
+    const take = Math.min(Math.max(limit, 1), CHAT_HISTORY_LIMIT);
+    const rows = await db.roomMessage.findMany({
+      where: { roomId },
+      orderBy: { createdAt: "desc" },
+      take,
+      include: { user: { select: { name: true } } },
+    });
+    return ok(rows.reverse().map(toChatMessage));
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+/**
  * Issue a fresh host-only invite link. Guests pick the code up from the room
  * header; only the host can mint revocable token links here.
  */
@@ -428,6 +517,8 @@ export async function leaveRoom(roomId: string): Promise<ActionResult<null>> {
       });
       if (role === "HOST") {
         // No host, no room — close it so guests can't watch "alone".
+        // Chat is ephemeral: drop the messages with the room.
+        await tx.roomMessage.deleteMany({ where: { roomId } });
         await tx.cinemaRoom.update({
           where: { id: roomId },
           data: { status: "CLOSED" },
@@ -452,6 +543,35 @@ export async function leaveRoom(roomId: string): Promise<ActionResult<null>> {
 // ---------------------------------------------------------------------------
 // Room page data (member-only)
 // ---------------------------------------------------------------------------
+
+type RoomMessageRow = {
+  id: string;
+  userId: string;
+  body: string;
+  createdAt: Date;
+  user: { name: string | null };
+};
+
+function toChatMessage(row: RoomMessageRow): ChatMessage {
+  return {
+    id: row.id,
+    userId: row.userId,
+    name: row.user.name ?? "Guest",
+    body: row.body,
+    at: row.createdAt.toISOString(),
+  };
+}
+
+/** Latest chat messages, oldest first (so the list renders top → bottom). */
+async function recentMessages(roomId: string, limit = 30): Promise<ChatMessage[]> {
+  const rows = await db.roomMessage.findMany({
+    where: { roomId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: { user: { select: { name: true } } },
+  });
+  return rows.reverse().map(toChatMessage);
+}
 
 async function getMembershipWithRoom(roomId: string, userId: string) {
   return db.roomMembership.findUnique({
@@ -496,6 +616,7 @@ export async function getRoomDetails(
         name: m.user.name ?? "Guest",
         role: m.role,
       })),
+      messages: await recentMessages(room.id),
       realtimeConfigured: isAblyConfigured(),
       livekitConfigured: isLiveKitConfigured(),
     });
@@ -549,6 +670,7 @@ export async function getRoomDetailsByCode(
         name: m.user.name ?? "Guest",
         role: m.role,
       })),
+      messages: await recentMessages(r.id),
       realtimeConfigured: isAblyConfigured(),
       livekitConfigured: isLiveKitConfigured(),
     });

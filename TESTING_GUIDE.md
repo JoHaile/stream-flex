@@ -189,6 +189,13 @@ is **no documented parent→player command API**, so:
 - [ ] Reactions: with Ably configured, clicking 👍 ❤️ 😂 😮 🔥 floats the emoji
       over everyone's player; a guest connected to the call shows an **In
       call** dot in the participant list.
+- [ ] Chat: the sidebar has a **Room chat** card (history loads on join).
+      Sending a message shows it as **You** (highlighted) locally, other
+      participants get it live via Ably, and polling mode still catches up
+      via `getRoomDetailsByCode().messages` every few seconds. Messages are
+      capped at 500 chars, rate-limited (8 per 10 s), persisted in
+      `room_message` and **deleted when the room closes**; a closed room
+      disables the input.
 - [ ] Seek to a position beyond the movie → scrubs clamp to ≥ 0; server
       parser rejects non-numeric positions.
 - [ ] Server action abuse: a guest calling `hostPlaybackCommand` directly
@@ -218,6 +225,9 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
    **Unmute movie** + "Tap to enable sound" pill on the player; reaction
    floats appear; the host row shows an "In call" dot; after the host closes
    the room a "closed" banner appears and controls disable.
+5. Chat: while the room is open, both send messages in the **Room chat**
+   card; the other window sees them live, the sender sees "You", history
+   survives a reload, and the input greys out after the room closes.
 
 ## 6. Known limitations (do not report as bugs)
 
@@ -229,7 +239,9 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
 - **Ably degrade:** without `ABLY_KEY` everything works via polling;
   who's-online is approximated by the DB member list refreshed every few
   seconds, and reactions are hidden (server returns `NOT_CONFIGURED`).
-- **No chat** yet — reactions are the lightweight stand-in. Starting muted is
+- **Chat** is room-scoped and ephemeral (messages are deleted when the room
+  closes); there is no DM, no history beyond the open room, and no emoji
+  formatting — plain text + line breaks only. Starting muted is
   intentional (autoplay rules; unmute requires a user gesture).
 
 ## 7. Key files
@@ -241,9 +253,9 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
 | Auth server | `lib/auth.ts`, `app/api/auth/[...all]/route.ts` |
 | Auth client | `lib/auth-client.ts` |
 | Cinema domain types/ids | `lib/cinema/types.ts`, `lib/cinema/ids.ts` |
-| Server actions (create/join/control/tokens/reactions/invites) | `lib/cinema/room-actions.ts` (`sendReaction`, `createInviteLink`, `getLiveKitToken`) |
-| Ably server REST helper | `lib/cinema/realtime.ts` (`publishReaction`) |
-| Ably client | `lib/cinema/ably-client.ts` (`onReaction`) |
+| Server actions (create/join/control/tokens/reactions/invites/chat) | `lib/cinema/room-actions.ts` (`sendReaction`, `createInviteLink`, `getLiveKitToken`, `sendChatMessage`, `getChatMessages`) |
+| Ably server REST helper | `lib/cinema/realtime.ts` (`publishReaction`, `publishChatMessage`) |
+| Ably client | `lib/cinema/ably-client.ts` (`onReaction`, `onChat`) |
 | LiveKit tokens | `lib/cinema/livekit.ts` |
 | Player adapter hook (muted state, `setMuted`) | `components/cinema/useCinemaPlayer.ts` |
 | Voice/video call panel (+ mobile fixed bar, in-call reporting) | `components/cinema/CallPanel.tsx` |
@@ -251,6 +263,7 @@ Walkthrough (two Edge/Chrome windows, dev server on :3000):
 | Room page client (guest status card, reactions, shortcuts, beacon) | `app/cinema/room/[code]/RoomClient.tsx` |
 | Join page (server artwork + client) | `app/cinema/join/[code]/page.tsx`, `JoinRoomClient.tsx` |
 | Host-exit beacon route | `app/api/cinema/leave/route.ts` |
+| Chat persistence | `prisma/schema.prisma` (`RoomMessage` → `room_message`) |
 | Other UI pages | `app/cinema/create/` |
 | Embed util (startAt/autoplay params) | `utils/embed.ts` |
 

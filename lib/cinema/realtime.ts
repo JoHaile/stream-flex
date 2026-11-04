@@ -49,6 +49,17 @@ export interface ReactionEvent {
   at: string;
 }
 
+/** A watch-party chat message. */
+export interface ChatMessageEvent {
+  type: "chat";
+  id: string;
+  roomId: string;
+  userId: string;
+  name: string;
+  body: string;
+  at: string;
+}
+
 export type RoomChannelEvent = PlaybackEvent | RoomMetaEvent;
 
 export async function publishPlayback(roomId: string, event: RoomChannelEvent) {
@@ -63,6 +74,20 @@ export async function publishReaction(roomId: string, event: ReactionEvent) {
   const ably = getAblyRest();
   if (!ably) return false;
   await ably.channels.get(roomChannelName(roomId)).publish("reaction", event);
+  return true;
+}
+
+/**
+ * Publish a chat message to the room channel. Saves + publishes happen in
+ * the caller (server action); this is the Ably-only fan-out step.
+ */
+export async function publishChatMessage(
+  roomId: string,
+  event: ChatMessageEvent,
+) {
+  const ably = getAblyRest();
+  if (!ably) return false;
+  await ably.channels.get(roomChannelName(roomId)).publish("chat", event);
   return true;
 }
 

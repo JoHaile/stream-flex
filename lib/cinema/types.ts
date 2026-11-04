@@ -45,6 +45,15 @@ export interface RoomInvitePreview {
   participants: RoomParticipantPreview[];
 }
 
+/** A chat message exchanged inside a cinema room. */
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  name: string;
+  body: string;
+  at: string;
+}
+
 /** Full authorized room payload for the room page. */
 export interface RoomDetails
   extends Omit<RoomInvitePreview, "participants" | "hostImage"> {
@@ -53,9 +62,14 @@ export interface RoomDetails
   myRole: RoomRole;
   playback: PlaybackState;
   participants: Array<{ id: string; name: string; role: RoomRole }>;
+  /** Latest messages, oldest first (so the list renders top → bottom). */
+  messages: ChatMessage[];
   realtimeConfigured: boolean;
   livekitConfigured: boolean;
 }
+
+export const CHAT_MAX_LENGTH = 500;
+export const CHAT_HISTORY_LIMIT = 50;
 
 export interface RoomCreatedResult {
   code: string;
