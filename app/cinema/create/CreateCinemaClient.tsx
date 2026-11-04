@@ -59,7 +59,9 @@ export default function CreateCinemaClient({
   initialMovie?: { id: string; title: string } | null;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>(initialMovie ? 3 : 1);
+  // Always start at step 1, even when a movie is prefilled, so the room name,
+  // capacity and the voice/video mode are never silently skipped.
+  const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState(5);
   const [mode, setMode] = useState<RoomMode>("MOVIE_ONLY");

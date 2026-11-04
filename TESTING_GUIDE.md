@@ -143,9 +143,22 @@ is **no documented parent→player command API**, so:
       host state.
 - [ ] Member list shows participants with a **Host** badge and seat count.
 - [ ] "Polling mode" banner is visible when `ABLY_KEY` is empty; absent when set.
-- [ ] LiveKit: in a `VOICE` or `VOICE_VIDEO` room the sidebar shows
-      **Join call**; connecting asks for mic/camera permission; mute/camera
-      toggles and **Leave call** work. In `MOVIE_ONLY` rooms no call UI exists.
+- [ ] Join page (VOICE / VOICE_VIDEO): a **When you join** picker offers
+      Audio only / Audio + video (video rooms only) / Just watching, and the
+      choice is preselected in the room's call panel.
+- [ ] LiveKit: in a `VOICE` or `VOICE_VIDEO` room the sidebar shows the call
+      panel. No permission prompt fires until **Join call** is pressed.
+- [ ] Pre-join panel: mic on/off, camera on/off, device pickers, live camera
+      preview when the camera is on.
+- [ ] In-call: mute, camera toggle, device switching, elapsed timer, speaking
+      ring, **Leave call** (returns to the pre-join panel without leaving the
+      room). Remote audio is audible and remote tiles show participant names.
+- [ ] Permission denial or a missing device keeps you in the call and shows a
+      recoverable amber message (the old panel aborted the whole join).
+- [ ] A guest who joined audio-only can still turn the camera on mid-call in a
+      VOICE_VIDEO room (token grants are a ceiling, not a snapshot).
+- [ ] Joining from a plain room code (no `t=` token) still works.
+- [ ] MOVIE_ONLY rooms show no call panel and never request media permission.
 - [ ] Wait: a room whose mode is VOICE/VOICE_VIDEO but whose LiveKit env is
       missing shows an informational note (not an error).
 
@@ -200,7 +213,7 @@ Playwright's own browser downloads are not required.
 | Ably server REST helper | `lib/cinema/realtime.ts`, `lib/cinema/ably-client.ts` |
 | LiveKit tokens | `lib/cinema/livekit.ts` |
 | Player adapter hook | `components/cinema/useCinemaPlayer.ts` |
-| Voice/video panel | `components/cinema/VoicePanel.tsx` |
+| Voice/video call panel | `components/cinema/CallPanel.tsx` |
 | UI pages | `app/cinema/create/`, `app/cinema/join/[code]/`, `app/cinema/room/[code]/` |
 | Embed util (startAt/autoplay params) | `utils/embed.ts` |
 

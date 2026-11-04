@@ -27,7 +27,7 @@ import {
 import { AblyRoomChannel, cinemaChannelName } from "@/lib/cinema/ably-client";
 import type { PlaybackState, RoomDetails } from "@/lib/cinema/types";
 import { useCinemaPlayer } from "@/components/cinema/useCinemaPlayer";
-import VoicePanel from "@/components/cinema/VoicePanel";
+import CallPanel from "@/components/cinema/CallPanel";
 
 type PlaybackPayload = {
   action: "play" | "pause" | "seek";
@@ -57,10 +57,12 @@ export default function RoomClient({
   room,
   justCreated,
   inviteToken,
+  initialCallChoice,
 }: {
   room: RoomDetails;
   justCreated: boolean;
   inviteToken: string | null;
+  initialCallChoice: "audio" | "audio-video" | "silent" | null;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -332,8 +334,9 @@ export default function RoomClient({
   const maxScrub = Math.max(player.snapshot.duration || 0, playback.positionSeconds + 60, 120);
 
   const closed = details.status !== "OPEN";
-  const callEnabled =
-    room.mode !== "MOVIE_ONLY" && room.livekitConfigured && !closed;
+  // The call stays useful even after the host closes playback, so only the
+  // room mode and missing LiveKit config gate it.
+  const callEnabled = room.mode !== "MOVIE_ONLY" && room.livekitConfigured;
 
 
   return (
@@ -566,9 +569,9 @@ export default function RoomClient({
           {/* Sidebar */}
           <aside className="space-y-4">
             {callEnabled ? (
-              <VoicePanel
+              <CallPanel
                 room={{ ...details, livekitConfigured: true }}
-                onLeave={() => undefined}
+                initialChoice={initialCallChoice ?? undefined}
               />
             ) : null}
 

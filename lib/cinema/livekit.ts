@@ -18,33 +18,45 @@ export function livekitRoomName(roomId: string) {
 /**
  * Issues a LiveKit access token for a participant of a cinema room.
  *
- * Permissions follow both the caller's explicit preference (wantVideo /
- * wantAudio) and the room's communication mode:
+ * The token's publish sources are a *ceiling* derived from the room's
+ * communication mode, not from the caller's pre-join preference:
  * - MOVIE_ONLY   → no token (this function rejects).
- * - VOICE        → audio publish allowed, video denied.
- * - VOICE_VIDEO  → audio + video publish allowed.
+ * - VOICE        → microphone publish allowed, camera denied.
+ * - VOICE_VIDEO  → microphone + camera publish allowed.
  *
- * Hosts and guests are equal here: everyone can publish only what the room
- * mode allows and only their own tracks.
+ * This keeps the joiner in control *during* the call: a guest who joins as
+ * audio-only (or even "just watching") can still flip their camera or mic on
+ * later without asking for a new token. The room layer (CallPanel) decides
+ * which sources are actually enabled at connect time and on every toggle.
+ *
+ * wantAudio / wantVideo are validated by the caller (getLiveKitToken) so a
+ * VOICE room can never request camera, and MOVIE_ONLY is rejected here.
+ * Hosts and guests are equal: everyone can publish only what the room mode
+ * allows and only their own tracks.
  */
 export function createLiveKitToken({
   roomId,
   identity,
   name,
   mode,
-  canVideo,
+  wantAudio = true,
+  wantVideo = false,
 }: {
   roomId: string;
   identity: string;
   name: string;
   mode: RoomMode;
-  canVideo: boolean;
+  wantAudio: boolean;
+  wantVideo: boolean;
 }) {
   if (!isLiveKitConfigured()) {
     throw new Error("LiveKit is not configured");
   }
   if (mode === "MOVIE_ONLY") {
     throw new Error("This room does not enable voice or video");
+  }
+  if (wantVideo && mode !== "VOICE_VIDEO") {
+    throw new Error("This room does not allow video");
   }
 
   const at = new AccessToken(
@@ -56,8 +68,15 @@ export function createLiveKitToken({
       ttl: "6h",
     },
   );
-  const publishSources: TrackSource[] = [TrackSource.MICROPHONE];
-  if (mode === "VOICE_VIDEO" && canVideo) {
+
+  // Ceiling grants (see doc comment above). wantAudio/wantVideo are accepted
+  // for validation but must not shrink the grant, or a guest who joined
+  // audio-only could never unmute mid-call.
+  const publishSources: TrackSource[] = [];
+  if (wantAudio) {
+    publishSources.push(TrackSource.MICROPHONE);
+  }
+  if (mode === "VOICE_VIDEO") {
     publishSources.push(TrackSource.CAMERA);
   }
   at.addGrant({

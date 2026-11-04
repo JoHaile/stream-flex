@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { auth, type Session } from "@/lib/auth";
 import { generateInviteToken, generateRoomCode, hashInviteToken } from "@/lib/cinema/ids";
 import { isAblyConfigured, getAblyRest, publishPlayback, roomCapabilities } from "@/lib/cinema/realtime";
-import { isLiveKitConfigured, createLiveKitToken } from "@/lib/cinema/livekit";
+import { isLiveKitConfigured, createLiveKitToken, livekitRoomName } from "@/lib/cinema/livekit";
 import {
   INVITE_TOKEN_TTL_MS,
   MAX_CAPACITY,
@@ -607,7 +607,7 @@ function livekitIdentity(userId: string) {
 
 export async function getLiveKitToken(
   roomId: string,
-  opts: { wantVideo?: boolean },
+  opts: { wantAudio?: boolean; wantVideo?: boolean; wantMic?: boolean },
 ): Promise<
   ActionResult<{ token: string; url: string; room: string }>
 > {
@@ -626,18 +626,25 @@ export async function getLiveKitToken(
       return fail("This room is movie-only.", "MOVIE_ONLY");
     }
 
+    // Video is only ever negotiable in VOICE_VIDEO rooms. Audio is always
+    // allowed as a ceiling so a muted joiner can unmute later.
+    const wantVideo =
+      Boolean(opts.wantVideo) && membership.room.mode === "VOICE_VIDEO";
+    const wantAudio = opts.wantAudio !== false;
+
     const token = await createLiveKitToken({
       roomId,
       identity: livekitIdentity(user.id),
       name: user.name ?? "Guest",
       mode: membership.room.mode,
-      canVideo: Boolean(opts.wantVideo) && membership.room.mode === "VOICE_VIDEO",
+      wantAudio,
+      wantVideo,
     });
     // The wss server URL is not a secret (the signed token is what grants
     // access); the client needs it to call Room.connect(url, token).
     const url = process.env.LIVEKIT_URL?.replace(/\/+$/, "");
     if (!url) return fail("Voice/video is not configured yet.", "NOT_CONFIGURED");
-    return ok({ token, url, room: `cinema-${roomId}` });
+    return ok({ token, url, room: livekitRoomName(roomId) });
   } catch (error) {
     return handleError(error);
   }

@@ -10,11 +10,11 @@ export default async function RoomPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ created?: string; invite?: string }>;
+  searchParams: Promise<{ created?: string; invite?: string; call?: string }>;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   const { code } = await params;
-  const { created, invite } = await searchParams;
+  const { created, invite, call } = await searchParams;
 
   if (!session?.user) {
     redirect(`/sign-in?next=/cinema/room/${encodeURIComponent(code)}`);
@@ -50,6 +50,11 @@ export default async function RoomPage({
       room={result.data}
       justCreated={created === "1"}
       inviteToken={invite ?? null}
+      initialCallChoice={
+        call === "audio" || call === "audio-video" || call === "silent"
+          ? call
+          : null
+      }
     />
   );
 }

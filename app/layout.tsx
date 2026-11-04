@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+// LiveKit's component styles (dark lk theme) load before globals.css so the
+// app tokens win.
+import "@livekit/components-styles";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
