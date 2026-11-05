@@ -12,6 +12,11 @@ import {
   DrawerTitle,
   DrawerClose,
 } from "@/components/ui/drawer";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { SearchResultItem } from "@/utils/catalog";
 import Image from "next/image";
 import SearchCommand from "@/components/shared/SearchCommand";
@@ -309,19 +314,13 @@ const NavActions = ({
 function NavBar() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
-  const [showJoin, setShowJoin] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    const close = () => setShowJoin(false);
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
   }, []);
 
   const links = [
@@ -352,24 +351,19 @@ function NavBar() {
 
         <div className="hidden md:flex items-center gap-3">
           <NavSearch />
-          <div
-            className="relative"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowJoin((v) => !v)}
-              aria-expanded={showJoin}
-              className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 px-3.5 py-1.5 text-xs font-bold text-zinc-300 hover:border-zinc-500 hover:text-white transition"
-            >
+          <Popover open={joinOpen} onOpenChange={setJoinOpen}>
+            <PopoverTrigger className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 px-3.5 py-1.5 text-xs font-bold text-zinc-300 hover:border-zinc-500 hover:text-white transition">
               <DoorOpen className="w-3.5 h-3.5" />
               Join
-            </button>
-            {showJoin ? (
-              <div className="absolute right-0 top-full mt-2 z-50 rounded-xl border border-zinc-700 bg-zinc-900 p-2 shadow-2xl">
-                <JoinByCode variant="nav" />
-              </div>
-            ) : null}
-          </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto max-w-[min(92vw,20rem)] p-2">
+              <JoinByCode
+                variant="nav"
+                autoFocus
+                onJoined={() => setJoinOpen(false)}
+              />
+            </PopoverContent>
+          </Popover>
           <Link
             href="/cinema/create"
             className="inline-flex items-center gap-1.5 rounded-full border border-red-500/50 px-3.5 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500 hover:text-white transition"

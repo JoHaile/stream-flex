@@ -15,7 +15,7 @@
 //  - Token grants are a ceiling derived from the room mode, so a guest who
 //    joined "audio only" can still turn their camera on mid-call.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Camera,
   CameraOff,
@@ -60,7 +60,67 @@ function mediaErrorMessage(error: unknown): string {
   if (name === "NotFoundError" || /no device|not found/i.test(message)) {
     return "No microphone or camera found on this device. Pick a different input or join silent.";
   }
+  if (
+    name === "NotSupportedError" ||
+    /not supported|doesn'?t seem to be supported|webrtc/i.test(message)
+  ) {
+    return "This browser can't make voice or video calls. Try Chrome, Edge, Firefox or Safari.";
+  }
   return message || "Something went wrong with your mic or camera.";
+}
+
+/**
+ * LiveKit needs WebRTC, which browsers only expose in a secure context and
+ * only when the peer-connection API can send media. Checking up front gives
+ * a clear message instead of LiveKit's raw "doesn't seem to be supported"
+ * error after the user has already picked a device.
+ */
+const SUPPORTED_MESSAGE =
+  "This browser can't make voice or video calls. Open the room in Chrome, Edge, Firefox or Safari over https:// and try again.";
+
+function checkCallSupport(): { ok: boolean; reason?: string } {
+  if (typeof window === "undefined") return SERVER_SUPPORT;
+  // Test seam / emergency kill-switch: force the "calls unavailable" state.
+  if ((window as { __CINEMA_DISABLE_WEBRTC?: boolean }).__CINEMA_DISABLE_WEBRTC) {
+    return { ok: false, reason: SUPPORTED_MESSAGE };
+  }
+  if (!window.isSecureContext) {
+    return {
+      ok: false,
+      reason:
+        "Calls need a secure connection. Open this page over https:// (or on localhost) to use your mic and camera.",
+    };
+  }
+  const PeerConnection = window.RTCPeerConnection;
+  if (typeof PeerConnection === "undefined") {
+    return { ok: false, reason: SUPPORTED_MESSAGE };
+  }
+  const proto = PeerConnection.prototype as RTCPeerConnection & {
+    addTransceiver?: unknown;
+    addTrack?: unknown;
+  };
+  if (!("addTransceiver" in proto) && !("addTrack" in proto)) {
+    return { ok: false, reason: SUPPORTED_MESSAGE };
+  }
+  if (!navigator.mediaDevices) {
+    return { ok: false, reason: SUPPORTED_MESSAGE };
+  }
+  return { ok: true };
+}
+
+// Cached so `useSyncExternalStore` sees a stable snapshot, with a separate
+// server snapshot so the first (hydrating) render matches the HTML.
+const SERVER_SUPPORT: { ok: boolean; reason?: string } = { ok: true };
+let cachedSupport: { ok: boolean; reason?: string } | null = null;
+function subscribeCallSupport() {
+  return () => {};
+}
+function getCallSupport() {
+  if (!cachedSupport) cachedSupport = checkCallSupport();
+  return cachedSupport;
+}
+function getServerCallSupport() {
+  return SERVER_SUPPORT;
 }
 
 export default function CallPanel({
@@ -91,6 +151,12 @@ export default function CallPanel({
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [peers, setPeers] = useState<Array<{ identity: string; name: string; speaking: boolean }>>([]);
   const [inCallSeconds, setInCallSeconds] = useState(0);
+  // Assume supported during server render; the real answer needs a browser.
+  const support = useSyncExternalStore(
+    subscribeCallSupport,
+    getCallSupport,
+    getServerCallSupport,
+  );
 
   const roomRef = useRef<Room | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -262,6 +328,12 @@ export default function CallPanel({
   const join = useCallback(async () => {
     setError(null);
     setMediaError(null);
+    const supportCheck = checkCallSupport();
+    if (!supportCheck.ok) {
+      setError(supportCheck.reason ?? SUPPORTED_MESSAGE);
+      setPhase("setup");
+      return;
+    }
     setPhase("connecting");
     try {
       const result = await getLiveKitToken(room.id, {
@@ -322,7 +394,12 @@ export default function CallPanel({
     } catch (e) {
       roomRef.current?.disconnect();
       roomRef.current = null;
-      setError(e instanceof Error ? e.message : "Could not connect to the call.");
+      const message = e instanceof Error ? e.message : "";
+      setError(
+        /not supported|doesn'?t seem to be supported|webrtc/i.test(message)
+          ? SUPPORTED_MESSAGE
+          : message || "Could not connect to the call.",
+      );
       setPhase("setup");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -455,124 +532,136 @@ export default function CallPanel({
           it any time during the call.
         </p>
 
-        {wantsVideo ? (
-          <div className="mb-4 grid gap-2 sm:grid-cols-3">
-            {CHOICES.map((c) => {
-              const Icon = c.icon;
-              const active = choice === c.value;
-              return (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => pickChoice(c.value)}
-                  aria-pressed={active}
-                  className={`rounded-xl border p-3 text-left transition ${
-                    active
-                      ? "border-red-500 bg-red-500/10 ring-2 ring-red-500/30"
-                      : "border-zinc-700 bg-zinc-950/40 hover:border-zinc-500"
-                  }`}
-                >
-                  <Icon className={`mb-2 h-4 w-4 ${active ? "text-red-400" : "text-zinc-400"}`} />
-                  <p className="text-xs font-bold">{c.label}</p>
-                  <p className="mt-0.5 text-[10px] leading-snug text-zinc-500">{c.hint}</p>
-                </button>
-              );
-            })}
+        {!support.ok ? (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+            <p className="font-bold">Calls aren&rsquo;t available in this browser</p>
+            <p className="mt-1 leading-snug">{support.reason}</p>
+            <p className="mt-2 text-amber-200/80">
+              You can still watch the movie and use chat with everyone else in the room.
+            </p>
           </div>
         ) : (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-400">
-            <Headphones className="h-4 w-4 text-red-400" />
-            Voice room — you can talk or stay muted the whole time.
-          </div>
-        )}
-
-        {/* Mic / camera toggles */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAudioOn((v) => !v)}
-            aria-pressed={audioOn}
-            aria-label={audioOn ? "Start on mute" : "Start unmuted"}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-              audioOn
-                ? "bg-zinc-200 text-black"
-                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            {audioOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
-            {audioOn ? "Mic on" : "Mic muted"}
-          </button>
+          <>
           {wantsVideo ? (
+            <div className="mb-4 grid gap-2 sm:grid-cols-3">
+              {CHOICES.map((c) => {
+                const Icon = c.icon;
+                const active = choice === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => pickChoice(c.value)}
+                    aria-pressed={active}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      active
+                        ? "border-red-500 bg-red-500/10 ring-2 ring-red-500/30"
+                        : "border-zinc-700 bg-zinc-950/40 hover:border-zinc-500"
+                    }`}
+                  >
+                    <Icon className={`mb-2 h-4 w-4 ${active ? "text-red-400" : "text-zinc-400"}`} />
+                    <p className="text-xs font-bold">{c.label}</p>
+                    <p className="mt-0.5 text-[10px] leading-snug text-zinc-500">{c.hint}</p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-400">
+              <Headphones className="h-4 w-4 text-red-400" />
+              Voice room — you can talk or stay muted the whole time.
+            </div>
+          )}
+
+          {/* Mic / camera toggles */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                setVideoOn((v) => !v);
-                if (!videoOn) setChoice("audio-video");
-              }}
-              aria-pressed={videoOn}
-              aria-label={videoOn ? "Join without camera" : "Join with camera"}
+              onClick={() => setAudioOn((v) => !v)}
+              aria-pressed={audioOn}
+              aria-label={audioOn ? "Start on mute" : "Start unmuted"}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                videoOn
+                audioOn
                   ? "bg-zinc-200 text-black"
                   : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              {videoOn ? <Camera className="h-3.5 w-3.5" /> : <CameraOff className="h-3.5 w-3.5" />}
-              {videoOn ? "Camera on" : "Camera off"}
+              {audioOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+              {audioOn ? "Mic on" : "Mic muted"}
             </button>
-          ) : null}
-          {(error || mediaError) && phase === "setup" ? (
-            <span className="ml-auto max-w-[220px] text-right text-[11px] leading-snug text-red-400">
-              {error ?? mediaError}
-            </span>
-          ) : null}
-        </div>
-
-        {/* Pre-join camera preview */}
-        {wantsVideo && videoOn ? (
-          <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-xl border border-zinc-800 bg-black">
-            <video ref={previewRef} autoPlay playsInline muted className="h-full w-full object-cover" />
-            <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-              You
-            </span>
+            {wantsVideo ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setVideoOn((v) => !v);
+                  if (!videoOn) setChoice("audio-video");
+                }}
+                aria-pressed={videoOn}
+                aria-label={videoOn ? "Join without camera" : "Join with camera"}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  videoOn
+                    ? "bg-zinc-200 text-black"
+                    : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                {videoOn ? <Camera className="h-3.5 w-3.5" /> : <CameraOff className="h-3.5 w-3.5" />}
+                {videoOn ? "Camera on" : "Camera off"}
+              </button>
+            ) : null}
+            {(error || mediaError) && phase === "setup" ? (
+              <span className="ml-auto max-w-[220px] text-right text-[11px] leading-snug text-red-400">
+                {error ?? mediaError}
+              </span>
+            ) : null}
           </div>
-        ) : null}
 
-        {/* Device pickers */}
-        <div className="mb-4 grid gap-2 sm:grid-cols-2">
-          <DeviceSelect
-            label="Microphone"
-            kind="audioinput"
-            devices={micDevices}
-            value={micDeviceId}
-            onRefresh={() => void refreshDevices("audio")}
-            onChange={(id) => void switchDevice("audioinput", id)}
-          />
-          {wantsVideo ? (
-            <DeviceSelect
-              label="Camera"
-              kind="videoinput"
-              devices={camDevices}
-              value={camDeviceId}
-              onRefresh={() => void refreshDevices("video")}
-              onChange={(id) => void switchDevice("videoinput", id)}
-            />
+          {/* Pre-join camera preview */}
+          {wantsVideo && videoOn ? (
+            <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-xl border border-zinc-800 bg-black">
+              <video ref={previewRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+              <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                You
+              </span>
+            </div>
           ) : null}
-        </div>
 
-        <button
-          onClick={() => void join()}
-          className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-500"
-        >
-          {choice === "silent"
-            ? "Join silently"
-            : choice === "audio-video" || (wantsVideo && videoOn)
-              ? "Join with audio + video"
-              : "Join call"}
-        </button>
-        <p className="mt-2 text-center text-[11px] text-zinc-600">
-          Hosts control playback — this only connects your mic and camera.
-        </p>
+          {/* Device pickers */}
+          <div className="mb-4 grid gap-2 sm:grid-cols-2">
+            <DeviceSelect
+              label="Microphone"
+              kind="audioinput"
+              devices={micDevices}
+              value={micDeviceId}
+              onRefresh={() => void refreshDevices("audio")}
+              onChange={(id) => void switchDevice("audioinput", id)}
+            />
+            {wantsVideo ? (
+              <DeviceSelect
+                label="Camera"
+                kind="videoinput"
+                devices={camDevices}
+                value={camDeviceId}
+                onRefresh={() => void refreshDevices("video")}
+                onChange={(id) => void switchDevice("videoinput", id)}
+              />
+            ) : null}
+          </div>
+
+          <button
+            onClick={() => void join()}
+            className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-500"
+          >
+            {choice === "silent"
+              ? "Join silently"
+              : choice === "audio-video" || (wantsVideo && videoOn)
+                ? "Join with audio + video"
+                : "Join call"}
+          </button>
+          <p className="mt-2 text-center text-[11px] text-zinc-600">
+            Hosts control playback — this only connects your mic and camera.
+          </p>
+          </>
+        )}
       </div>
     );
   }

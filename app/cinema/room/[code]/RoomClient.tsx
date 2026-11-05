@@ -12,15 +12,9 @@ import {
   LoaderCircle,
   LogOut,
   MessageCircle,
-  Pause,
-  Play,
   RefreshCw,
-  RotateCcw,
-  RotateCw,
   Send,
   Users,
-  Volume2,
-  VolumeX,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import {
@@ -61,14 +55,20 @@ const MODE_LABEL: Record<RoomDetails["mode"], string> = {
   VOICE_VIDEO: "Voice + video",
 };
 
-function formatTime(totalSeconds: number) {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const mm = String(m).padStart(2, "0");
-  const ss = String(sec).padStart(2, "0");
-  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+/**
+ * Where the movie should be right now. The server only stores the position at
+ * the moment the host last acted, so a guest joining later has to add the time
+ * that has elapsed since then — otherwise it would start from that old spot
+ * (usually 00:00).
+ */
+function livePositionAt(state: PlaybackState) {
+  if (!state.isPlaying) return Math.max(0, state.positionSeconds);
+  const updated = Date.parse(state.stateUpdatedAt);
+  if (!Number.isFinite(updated)) return Math.max(0, state.positionSeconds);
+  return Math.max(
+    0,
+    state.positionSeconds + Math.max(0, (Date.now() - updated) / 1000),
+  );
 }
 
 export default function RoomClient({
@@ -94,8 +94,6 @@ export default function RoomClient({
   const [copied, setCopied] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [freshInviteToken, setFreshInviteToken] = useState<string | null>(null);
-  const [seekBuffer, setSeekBuffer] = useState<number | null>(null);
-  const [muted, setMutedState] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
   const [inCallIds, setInCallIds] = useState<string[]>([]);
@@ -117,13 +115,30 @@ export default function RoomClient({
   const systemSeq = useRef(0);
 
   const stateVersionRef = useRef(room.playback.stateVersion);
+  const playbackRef = useRef<PlaybackState>(room.playback);
   const channelRef = useRef<AblyRoomChannel | null>(null);
   const syncingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Only the first "playing" event after the page opens needs a position
+  // correction. After that the host drives everything and the user can use the
+  // manual Re-sync button if their player ever falls behind.
+  const guestAlignedRef = useRef(false);
+  const hostSawPlayingRef = useRef(false);
+  const lastHostEventRef = useRef<{
+    status: string;
+    position: number;
+    at: number;
+  } | null>(null);
 
-  const player = useCinemaPlayer(room.movieId, {
-    position: playback.positionSeconds,
-    playing: playback.isPlaying,
-  });
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const player = useCinemaPlayer(
+    room.movieId,
+    {
+      position: playback.positionSeconds,
+      playing: playback.isPlaying,
+    },
+    iframeRef,
+  );
 
   // Keep a mutable handle to the player API for event listeners.
   const playerRef = useRef(player);
@@ -131,20 +146,15 @@ export default function RoomClient({
     playerRef.current = player;
   }, [player]);
 
+  useEffect(() => {
+    playbackRef.current = playback;
+  }, [playback]);
+
   const invitePath = useMemo(() => {
     const base = `/cinema/join/${room.code}`;
     const token = inviteToken ?? freshInviteToken;
     return token ? `${base}?t=${token}` : base;
   }, [room.code, inviteToken, freshInviteToken]);
-
-  // -------------------------------------------------------------------------
-  // Sound
-  // -------------------------------------------------------------------------
-
-  const changeMuted = useCallback((next: boolean) => {
-    setMutedState(next);
-    playerRef.current.setMuted(next);
-  }, []);
 
   // -------------------------------------------------------------------------
   // Chat
@@ -261,18 +271,19 @@ export default function RoomClient({
     (state: PlaybackState, force = false) => {
       if (!force && state.stateVersion <= stateVersionRef.current) return;
       stateVersionRef.current = Math.max(stateVersionRef.current, state.stateVersion);
+      playbackRef.current = state;
       setPlayback(state);
-      if (!isHost) {
-        playerRef.current.applyCommand({
-          action: state.isPlaying ? "play" : "pause",
-          position: state.positionSeconds,
-          isPlaying: state.isPlaying,
-        });
-        // Show a short "syncing" hint while the embed re-mounts.
-        setSyncing(true);
-        if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
-        syncingTimerRef.current = setTimeout(() => setSyncing(false), 1800);
-      }
+      if (isHost) return;
+      // Guests are never re-mounted: we seek their already-running player to
+      // the host's live position and match the play/pause state.
+      playerRef.current.applyCommand({
+        action: state.isPlaying ? "play" : "pause",
+        position: livePositionAt(state),
+        isPlaying: state.isPlaying,
+      });
+      setSyncing(true);
+      if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
+      syncingTimerRef.current = setTimeout(() => setSyncing(false), 1500);
     },
     [isHost],
   );
@@ -370,28 +381,7 @@ export default function RoomClient({
 
     const poll = setInterval(async () => {
       const state = await getPlaybackState(room.id);
-      if (state.ok) {
-        applyExternalPlayback(state.data);
-        // Drift correction for guests: while the room is "playing", keep the
-        // local player within ~10s of the server-authored position. More
-        // conservative than before so the embed does not re-mount constantly.
-        if (!isHost) {
-          const snap = playerRef.current.getSnapshot();
-          const target =
-            state.data.positionSeconds +
-            (Date.now() - Date.parse(state.data.stateUpdatedAt)) / 1000;
-          if (snap.status === "playing" && Math.abs(snap.position - target) > 10) {
-            playerRef.current.applyCommand({
-              action: "seek",
-              position: Math.round(target),
-              isPlaying: true,
-            });
-            setSyncing(true);
-            if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
-            syncingTimerRef.current = setTimeout(() => setSyncing(false), 1800);
-          }
-        }
-      }
+      if (state.ok) applyExternalPlayback(state.data);
       const roomState = await getRoomDetailsByCode(room.code);
       if (roomState.ok && !disposed) {
         setDetails((prev) => ({
@@ -425,17 +415,6 @@ export default function RoomClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id, room.realtimeConfigured]);
 
-  // Tick (live clock) + keep the sound button in sync with the embed.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((t) => t + 1);
-      const snap = playerRef.current.getSnapshot();
-      setMutedState((prev) => (prev === snap.muted ? prev : snap.muted));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   // -------------------------------------------------------------------------
   // Host commands
   // -------------------------------------------------------------------------
@@ -444,18 +423,16 @@ export default function RoomClient({
     async (action: "play" | "pause" | "seek", position: number) => {
       if (!isHost) return;
       setSyncError(null);
+      const current = playbackRef.current;
       const optimistic: PlaybackState = {
-        isPlaying: action === "play" ? true : action === "pause" ? false : playback.isPlaying,
+        isPlaying:
+          action === "play" ? true : action === "pause" ? false : current.isPlaying,
         positionSeconds: position,
-        stateVersion: stateVersionRef.current + 1,
+        stateVersion: Math.max(stateVersionRef.current, current.stateVersion) + 1,
         stateUpdatedAt: new Date().toISOString(),
       };
-      playerRef.current.applyCommand({
-        action,
-        position,
-        isPlaying: optimistic.isPlaying,
-      });
-      stateVersionRef.current += 1;
+      stateVersionRef.current = optimistic.stateVersion;
+      playbackRef.current = optimistic;
       setPlayback(optimistic);
 
       const result = await hostPlaybackCommand(room.id, {
@@ -464,72 +441,108 @@ export default function RoomClient({
       });
       if (!result.ok) {
         setSyncError(result.error);
-      }
-    },
-    [isHost, playback.isPlaying, room.id],
-  );
-
-  const togglePlay = useCallback(() => {
-    if (!isHost) return;
-    const position = Math.floor(
-      playback.positionSeconds +
-        (playback.isPlaying
-          ? (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
-          : 0),
-    );
-    void sendHostCommand(playback.isPlaying ? "pause" : "play", position);
-  }, [isHost, playback, sendHostCommand]);
-
-  const seekBy = useCallback(
-    (delta: number) => {
-      if (!isHost) return;
-      const position = Math.max(
-        0,
-        Math.floor(
-          playback.positionSeconds +
-            (playback.isPlaying
-              ? (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
-              : 0) +
-            delta,
-        ),
-      );
-      void sendHostCommand("seek", position);
-    },
-    [isHost, playback, sendHostCommand],
-  );
-
-  const commitSeek = useCallback(
-    (position: number) => {
-      if (!isHost) return;
-      setSeekBuffer(null);
-      void sendHostCommand("seek", position);
-    },
-    [isHost, sendHostCommand],
-  );
-
-  // Host keyboard shortcuts: Space = play/pause, arrows = ±10s.
-  useEffect(() => {
-    if (!isHost) return;
-    const onKey = (event: KeyboardEvent) => {
-      const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || tag === "select" || el?.isContentEditable) {
         return;
       }
-      if (event.code === "Space") {
-        event.preventDefault();
-        togglePlay();
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        seekBy(-10);
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        seekBy(10);
+      // The server response is authoritative. Keep the local version ahead of
+      // anything a stale poll may have read so it cannot roll back.
+      stateVersionRef.current = Math.max(
+        stateVersionRef.current,
+        result.data.stateVersion,
+      );
+      playbackRef.current = result.data;
+      setPlayback(result.data);
+    },
+    [isHost, room.id],
+  );
+
+  // The movie's own controls are the source of truth. Every native event the
+  // embed reports is translated into a room command so guests follow along.
+  const handleHostPlayerEvent = useCallback(
+    (snap: { status: string; position: number }) => {
+      const now = Date.now();
+      const current = playbackRef.current;
+      const last = lastHostEventRef.current;
+      lastHostEventRef.current = {
+        status: snap.status,
+        position: snap.position,
+        at: now,
+      };
+
+      // A freshly loaded player resumes at the room's stored startAt, which can
+      // be well behind "now". Pull it forward instead of rewinding everyone.
+      if (!hostSawPlayingRef.current) {
+        if (snap.status === "seeked") {
+          if (current.isPlaying) {
+            void sendHostCommand("seek", Math.round(livePositionAt(current)));
+          }
+          return;
+        }
+        if (snap.status === "playing") {
+          hostSawPlayingRef.current = true;
+          if (!current.isPlaying) {
+            void sendHostCommand("play", Math.round(snap.position));
+          } else if (Math.abs(snap.position - livePositionAt(current)) > 3) {
+            void sendHostCommand("seek", Math.round(livePositionAt(current)));
+          }
+        }
+        return;
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isHost, togglePlay, seekBy]);
+
+      const expected =
+        last && last.status === "playing"
+          ? last.position + (now - last.at) / 1000
+          : (last?.position ?? snap.position);
+      const seeked =
+        snap.status === "seeked" || Math.abs(snap.position - expected) > 3;
+
+      if (seeked) {
+        void sendHostCommand("seek", Math.round(snap.position));
+        return;
+      }
+      if (snap.status === "playing" && !current.isPlaying) {
+        void sendHostCommand("play", Math.round(snap.position));
+      } else if (
+        (snap.status === "paused" || snap.status === "ended") &&
+        current.isPlaying
+      ) {
+        void sendHostCommand("pause", Math.round(snap.position));
+      }
+    },
+    [sendHostCommand],
+  );
+
+  // Guests correct themselves once, on their first real play. After that they
+  // follow the host and can hit "Re-sync" if they drift.
+  const handleGuestPlayerEvent = useCallback(
+    (snap: { status: string; position: number }) => {
+      if (guestAlignedRef.current || snap.status !== "playing") return;
+      guestAlignedRef.current = true;
+      const current = playbackRef.current;
+      if (current.isPlaying) {
+        const target = livePositionAt(current);
+        if (Math.abs(snap.position - target) > 3) {
+          playerRef.current.applyCommand({
+            action: "seek",
+            position: target,
+            isPlaying: true,
+          });
+        }
+        return;
+      }
+      playerRef.current.applyCommand({
+        action: "pause",
+        position: current.positionSeconds,
+        isPlaying: false,
+      });
+    },
+    [],
+  );
+
+  const { onPlaybackChange } = player;
+  useEffect(() => {
+    onPlaybackChange(isHost ? handleHostPlayerEvent : handleGuestPlayerEvent);
+    return () => onPlaybackChange(null);
+  }, [onPlaybackChange, isHost, handleHostPlayerEvent, handleGuestPlayerEvent]);
 
   // -------------------------------------------------------------------------
   // Leaving / closing
@@ -567,16 +580,17 @@ export default function RoomClient({
     return () => window.removeEventListener("pagehide", onHide);
   }, [isHost, room.id]);
 
-  const forceSync = useCallback(() => {
+  const resyncWithHost = useCallback(() => {
+    const current = playbackRef.current;
     setSyncing(true);
     if (syncingTimerRef.current) clearTimeout(syncingTimerRef.current);
-    syncingTimerRef.current = setTimeout(() => setSyncing(false), 1200);
+    syncingTimerRef.current = setTimeout(() => setSyncing(false), 1400);
     playerRef.current.applyCommand({
-      action: playback.isPlaying ? "play" : "pause",
-      position: playback.positionSeconds,
-      isPlaying: playback.isPlaying,
+      action: current.isPlaying ? "play" : "pause",
+      position: livePositionAt(current),
+      isPlaying: current.isPlaying,
     });
-  }, [playback]);
+  }, []);
 
   // Auto-scroll chat while the user is already at the bottom.
   useEffect(() => {
@@ -610,14 +624,6 @@ export default function RoomClient({
   // -------------------------------------------------------------------------
   // Derived display state
   // -------------------------------------------------------------------------
-
-  const positionSeconds = playback.isPlaying
-    ? playback.positionSeconds +
-      // eslint-disable-next-line react-hooks/purity
-      (Date.now() - Date.parse(playback.stateUpdatedAt)) / 1000
-    : seekBuffer ?? playback.positionSeconds;
-
-  const maxScrub = Math.max(player.snapshot.duration || 0, playback.positionSeconds + 60, 120);
 
   const closed = details.status !== "OPEN";
   const callEnabled = room.mode !== "MOVIE_ONLY" && room.livekitConfigured;
@@ -813,6 +819,7 @@ export default function RoomClient({
             <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-zinc-800 bg-black">
               {player.src ? (
                 <iframe
+                  ref={iframeRef}
                   key={player.src}
                   src={player.src}
                   title={room.movieTitle}
@@ -820,31 +827,6 @@ export default function RoomClient({
                   allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                   className="h-full w-full"
                 />
-              ) : null}
-
-              {muted && player.src ? (
-                <button
-                  onClick={() => changeMuted(false)}
-                  className="absolute bottom-3 left-3 z-10 inline-flex items-center gap-2 rounded-full bg-black/80 px-3.5 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-black"
-                >
-                  <VolumeX className="h-4 w-4" />
-                  Tap to enable sound
-                </button>
-              ) : null}
-
-              {player.status === "paused" &&
-              playback.positionSeconds > 0 &&
-              !playback.isPlaying &&
-              isHost ? (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/60">
-                  <button
-                    onClick={togglePlay}
-                    className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white shadow-xl hover:bg-red-500 transition"
-                    aria-label="Play"
-                  >
-                    <Play className="ml-0.5 h-6 w-6" />
-                  </button>
-                </div>
               ) : null}
 
               {syncing ? (
@@ -869,153 +851,37 @@ export default function RoomClient({
               </div>
             </div>
 
-            {/* Playback controls / guest status */}
+            {/* Playback status — the movie's own controls drive everything */}
             <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-              {isHost ? (
-                <div className="mb-1 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                    Host controls — everyone follows you
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white">
+                    {isHost ? "You're the host" : "The host controls the movie"}
                   </p>
-                  <span className="font-mono text-sm text-zinc-200">
-                    {formatTime(positionSeconds)} /{" "}
-                    {player.snapshot.duration > 0
-                      ? formatTime(player.snapshot.duration)
-                      : "--:--"}
-                  </span>
+                  <p className="mt-0.5 text-xs text-zinc-400">
+                    {isHost
+                      ? "Use the movie's own play, pause and seek controls — every guest follows along automatically."
+                      : closed
+                        ? "This room is closed."
+                        : playback.isPlaying
+                          ? "Playing — your player follows the host. Use Re-sync if you fall behind."
+                          : playback.positionSeconds > 0
+                            ? "The host has paused the movie."
+                            : "Waiting for the host to start the movie…"}
+                  </p>
                 </div>
-              ) : (
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                    The host controls playback for everyone
-                  </p>
-                  <span className="font-mono text-sm text-zinc-200">
-                    {formatTime(positionSeconds)} /{" "}
-                    {player.snapshot.duration > 0
-                      ? formatTime(player.snapshot.duration)
-                      : "--:--"}
-                  </span>
-                </div>
-              )}
-
-              {isHost ? (
-                <>
-                  <input
-                    type="range"
-                    min={0}
-                    max={Math.floor(maxScrub)}
-                    step={1}
-                    value={Math.floor(
-                      seekBuffer ??
-                        (playback.isPlaying
-                          ? positionSeconds
-                          : playback.positionSeconds),
-                    )}
-                    onChange={(e) => setSeekBuffer(Number(e.target.value))}
-                    onPointerUp={(e) =>
-                      commitSeek(Number((e.target as HTMLInputElement).value))
-                    }
-                    onKeyUp={(e) => {
-                      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-                        commitSeek(Number((e.target as HTMLInputElement).value));
-                      }
-                    }}
-                    disabled={closed}
-                    className="mt-2 w-full accent-red-500 disabled:opacity-40"
-                    aria-label="Seek"
-                  />
-
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      onClick={() => seekBy(-30)}
-                      disabled={closed}
-                      className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
-                    >
-                      <RotateCcw className="h-4 w-4" /> 30s
-                    </button>
-                    <button
-                      onClick={togglePlay}
-                      disabled={closed}
-                      className="inline-flex h-11 items-center gap-2 rounded-lg bg-red-600 px-6 text-sm font-bold text-white hover:bg-red-500 transition disabled:opacity-40"
-                    >
-                      {playback.isPlaying ? (
-                        <>
-                          <Pause className="h-4 w-4" /> Pause
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4" /> Play
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => seekBy(30)}
-                      disabled={closed}
-                      className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
-                    >
-                      30s <RotateCw className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => changeMuted(!muted)}
-                      aria-pressed={!muted}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                        muted
-                          ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                          : "bg-zinc-200 text-black hover:bg-white"
-                      }`}
-                    >
-                      {muted ? (
-                        <VolumeX className="h-4 w-4" />
-                      ) : (
-                        <Volume2 className="h-4 w-4" />
-                      )}
-                      {muted ? "Sound off" : "Sound on"}
-                    </button>
-                  </div>
-                  <p className="mt-2 text-center text-[11px] text-zinc-600">
-                    Shortcuts: Space = play/pause · ←/→ = seek 10s
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-zinc-300">
-                    {closed
-                      ? "This room is closed."
-                      : playback.isPlaying
-                        ? "Host is playing — your player follows along."
-                        : playback.positionSeconds > 0
-                          ? "Host has paused the movie."
-                          : "Waiting for the host to start the movie…"}
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      onClick={forceSync}
-                      disabled={closed}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3.5 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition disabled:opacity-40"
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
-                      />
-                      Re-sync with host
-                    </button>
-                    <button
-                      onClick={() => changeMuted(!muted)}
-                      aria-pressed={!muted}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
-                        muted
-                          ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-                          : "bg-zinc-200 text-black hover:bg-white"
-                      }`}
-                    >
-                      {muted ? (
-                        <VolumeX className="h-4 w-4" />
-                      ) : (
-                        <Volume2 className="h-4 w-4" />
-                      )}
-                      {muted ? "Unmute movie" : "Mute movie"}
-                    </button>
-                  </div>
-                </>
-              )}
+                {!isHost && !closed ? (
+                  <button
+                    onClick={resyncWithHost}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-800 px-3.5 py-2 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
+                    />
+                    Re-sync
+                  </button>
+                ) : null}
+              </div>
 
               {/* Reactions */}
               {room.realtimeConfigured ? (

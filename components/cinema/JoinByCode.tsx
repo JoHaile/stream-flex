@@ -9,8 +9,14 @@ import { DoorOpen } from "lucide-react";
 
 export default function JoinByCode({
   variant = "card",
+  autoFocus = false,
+  onJoined,
 }: {
   variant?: "card" | "nav";
+  /** Focus the code input as soon as it mounts (used inside the nav popover). */
+  autoFocus?: boolean;
+  /** Called after a valid code is submitted, before navigation. */
+  onJoined?: () => void;
 }) {
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -24,6 +30,7 @@ export default function JoinByCode({
       return;
     }
     setError(null);
+    onJoined?.();
     router.push(`/cinema/join/${encodeURIComponent(clean)}`);
   };
 
@@ -72,6 +79,7 @@ export default function JoinByCode({
         onChange={(e) => setCode(e.target.value)}
         placeholder="Room code"
         maxLength={12}
+        autoFocus={autoFocus}
         autoComplete="off"
         spellCheck={false}
         aria-label="Room code"
