@@ -10,10 +10,12 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
-  }
+  // Keep a syntactically valid fallback so importing this module never throws
+  // during `next build` when DATABASE_URL is not configured (e.g. preview
+  // deployments). Queries will still fail at runtime until a real URL is set.
+  const connectionString =
+    process.env.DATABASE_URL?.trim() ||
+    "postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder";
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
