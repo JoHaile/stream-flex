@@ -13,6 +13,8 @@ import { ChevronLeft, ChevronRight, StarIcon, TrendingUp, Calendar } from "lucid
 interface TVSeriesDetailClientProps {
   initialEpisodes: TVEpisode[];
   initialSeason: number;
+  /** Page of the season grid the URL asked for (?page=N). */
+  initialPage?: number;
   seriesData: TVSeriesDetails;
   seriesId: string;
 }
@@ -178,6 +180,7 @@ function ReviewCard({ review }: { review: TMDBReview }) {
 export default function TVSeriesDetailClient({
   initialEpisodes,
   initialSeason,
+  initialPage = 1,
   seriesData,
   seriesId,
 }: TVSeriesDetailClientProps) {
@@ -474,6 +477,7 @@ export default function TVSeriesDetailClient({
           <EpisodeList
             currentEpisode={currentEpisode}
             initialEpisodes={initialEpisodes}
+            initialPage={initialPage}
             initialSeason={initialSeason}
             selectedSeason={selectedSeason}
             onSeasonChange={handleSeasonChange}

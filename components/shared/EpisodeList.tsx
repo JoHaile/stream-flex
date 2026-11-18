@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { getTVSeasonDetails } from "@/utils/tmdb";
 import {
+  ChevronLeft,
+  ChevronRight,
   ClockIcon,
   PlayIcon,
   SearchIcon,
@@ -36,6 +38,8 @@ interface EpisodeListProps {
   seasons: Season[];
   initialEpisodes: Episode[];
   initialSeason: number;
+  /** Episode page requested by the URL (?page=N), only used by the grid. */
+  initialPage?: number;
   /** Owned by the parent so the page list and the in-player drawer cannot disagree. */
   selectedSeason: number;
   onSeasonChange: (season: number) => void;
@@ -49,6 +53,92 @@ interface EpisodeListProps {
   currentEpisode?: { season: number; episode: number };
   /** "grid" is used on the season page, "list" inside the player drawer. */
   variant?: "grid" | "list";
+}
+
+/**
+ * Long seasons (anime can run to 100+ episodes) are split into pages so the page
+ * never becomes an endless scroll. Only the grid variant paginates; the player
+ * drawer keeps its full list, where the season search does the narrowing.
+ */
+const GRID_PAGE_SIZE = 12;
+// The grid is a single column on phones, so a shorter page keeps it from turning
+// back into the endless scroll this pagination exists to prevent.
+const COMPACT_QUERY = "(max-width: 639px)";
+const COMPACT_PAGE_SIZE = 6;
+
+function subscribeViewport(onChange: () => void) {
+  const query = window.matchMedia(COMPACT_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function getViewportSnapshot() {
+  return window.matchMedia(COMPACT_QUERY).matches;
+}
+
+function useEpisodePageSize() {
+  const compact = useSyncExternalStore(
+    subscribeViewport,
+    getViewportSnapshot,
+    () => false,
+  );
+  return compact ? COMPACT_PAGE_SIZE : GRID_PAGE_SIZE;
+}
+
+function Pager({
+  page,
+  totalPages,
+  onChange,
+  label,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(page - 1)}
+        disabled={page <= 1}
+        aria-label={`${label}: previous page`}
+        className="flex size-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <span className="min-w-[54px] text-center text-[11px] font-bold tabular-nums text-zinc-400">
+        {page} / {totalPages}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(page + 1)}
+        disabled={page >= totalPages}
+        aria-label={`${label}: next page`}
+        className="flex size-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <ChevronRight className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Mirrors the season/page being viewed into the URL so a refresh or a shared link
+ * reopens the same place. Uses the native History API, which Next's router
+ * understands, so no server round-trip is triggered.
+ */
+function syncUrl(season: number, page: number) {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  params.set("season", String(season));
+  if (page > 1) params.set("page", String(page));
+  else params.delete("page");
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}?${params.toString()}`,
+  );
 }
 
 const airDateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -69,6 +159,7 @@ export default function EpisodeList({
   seasons,
   initialEpisodes,
   initialSeason,
+  initialPage = 1,
   selectedSeason,
   onSeasonChange,
   onEpisodesLoaded,
@@ -89,7 +180,17 @@ export default function EpisodeList({
     filterState.season === selectedSeason ? filterState.term : "";
   const setEpisodeQuery = (term: string) =>
     setFilterState({ season: selectedSeason, term });
+  // The page belongs to a season + search term, so a new season or term starts
+  // from page 1 without resetting state inside an effect. The initial page comes
+  // from the server, which reads ?season=…&page=… so links and refreshes survive.
+  const pageKey = `${selectedSeason}|${episodeQuery}`;
+  const [pageMemory, setPageMemory] = useState({
+    key: `${initialSeason}|`,
+    page: Math.max(1, initialPage),
+  });
+  const pageSize = useEpisodePageSize();
   const railRef = useRef<HTMLDivElement>(null);
+  const gridTopRef = useRef<HTMLDivElement>(null);
 
   // Read synchronously so the fetch effect can check the cache without listing it
   // as a dependency — otherwise every write would re-trigger the fetch.
@@ -166,6 +267,43 @@ export default function EpisodeList({
     if (Number.isNaN(season) || season === selectedSeason) return;
     setFailedSeason(null);
     onSeasonChange(season);
+    syncUrl(season, 1);
+  };
+
+  const paginate = variant === "grid" && !!visibleEpisodes;
+  const totalResults = visibleEpisodes?.length ?? 0;
+  const totalPages = paginate
+    ? Math.max(1, Math.ceil(totalResults / pageSize))
+    : 1;
+
+  // Opening a season the player is already inside should land on the page that
+  // holds the playing episode rather than always on episode 1. Derived during
+  // render so the first paint already shows the right page (no effect bounce),
+  // and it resolves to 1 while the season is still loading.
+  const playingEpisodeNumber =
+    currentEpisode?.season === selectedSeason ? currentEpisode.episode : null;
+  const defaultPage = (() => {
+    if (!visibleEpisodes || !playingEpisodeNumber || episodeQuery) return 1;
+    const index = visibleEpisodes.findIndex(
+      (episode) => episode.episode_number === playingEpisodeNumber,
+    );
+    return index >= 0 ? Math.floor(index / pageSize) + 1 : 1;
+  })();
+
+  const currentPage = pageMemory.key === pageKey ? pageMemory.page : defaultPage;
+  const activePage = Math.min(Math.max(currentPage, 1), totalPages);
+  const pageStart = (activePage - 1) * pageSize;
+  const pageEpisodes = paginate
+    ? (visibleEpisodes ?? []).slice(pageStart, pageStart + pageSize)
+    : visibleEpisodes;
+
+  const goToPage = (next: number) => {
+    const clamped = Math.min(Math.max(next, 1), totalPages);
+    if (clamped === activePage) return;
+    setPageMemory({ key: pageKey, page: clamped });
+    syncUrl(selectedSeason, clamped);
+    // Land on the top of the new page instead of leaving the user mid-scroll.
+    gridTopRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
 
   const isActive = (episode: Episode) =>
@@ -174,7 +312,7 @@ export default function EpisodeList({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 space-y-3">
+      <div ref={gridTopRef} className="mb-4 scroll-mt-24 space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-red-400">
@@ -186,15 +324,22 @@ export default function EpisodeList({
                 ? `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`
                 : "Loading episodes…"}
             </h3>
+            {paginate && totalResults > pageSize ? (
+              <p className="mt-0.5 text-xs font-medium tabular-nums text-zinc-500">
+                Showing episodes {pageStart + 1}–
+                {pageStart + (pageEpisodes?.length ?? 0)} of {totalResults}
+              </p>
+            ) : null}
           </div>
 
-          {episodes && episodes.length > 8 ? (
+          <div className="flex items-center gap-2">
+            {episodes && episodes.length > 8 ? (
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500" />
               <input
                 value={episodeQuery}
                 onChange={(event) => setEpisodeQuery(event.target.value)}
-                placeholder="Find episode"
+                placeholder="Episode name or #"
                 aria-label="Find episode in this season"
                 className="h-8 w-40 rounded-full border border-white/10 bg-white/[0.04] pl-8 pr-7 text-xs text-white placeholder:text-zinc-500 focus:border-red-500/40 focus:outline-none sm:w-44"
               />
@@ -209,7 +354,17 @@ export default function EpisodeList({
                 </button>
               ) : null}
             </div>
-          ) : null}
+            ) : null}
+
+            {totalPages > 1 ? (
+              <Pager
+                page={activePage}
+                totalPages={totalPages}
+                onChange={goToPage}
+                label={`Season ${selectedSeason} episodes`}
+              />
+            ) : null}
+          </div>
         </div>
 
         <div
@@ -227,7 +382,7 @@ export default function EpisodeList({
                 onClick={() => handleSeasonChange(season.season_number)}
                 aria-pressed={isSelected}
                 className={cn(
-                  "group flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                  "group flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition",
                   isSelected
                     ? "border-white bg-white text-black shadow-lg shadow-white/10"
                     : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white",
@@ -236,10 +391,10 @@ export default function EpisodeList({
                 Season {season.season_number}
                 <span
                   className={cn(
-                    "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                    "rounded-full px-2 py-0.5 text-xs font-bold tabular-nums",
                     isSelected
-                      ? "bg-black/10 text-black/60"
-                      : "bg-white/[0.06] text-zinc-500 group-hover:text-zinc-300",
+                      ? "bg-black/10 text-black/70"
+                      : "bg-white/10 text-zinc-300 group-hover:text-white",
                   )}
                 >
                   {season.episode_count}
@@ -312,7 +467,7 @@ export default function EpisodeList({
               : "flex flex-col gap-2",
           )}
         >
-          {visibleEpisodes.map((episode) => {
+          {pageEpisodes?.map((episode) => {
             const active = isActive(episode);
             const airDate = formatAirDate(episode.air_date);
             const isGrid = variant === "grid";
@@ -415,6 +570,21 @@ export default function EpisodeList({
           })}
         </div>
       )}
+
+      {totalPages > 1 ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] tabular-nums text-zinc-500">
+            Episodes {pageStart + 1}–{pageStart + (pageEpisodes?.length ?? 0)} of{" "}
+            {totalResults}
+          </p>
+          <Pager
+            page={activePage}
+            totalPages={totalPages}
+            onChange={goToPage}
+            label={`Season ${selectedSeason} episodes`}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
