@@ -352,6 +352,7 @@ function mapLatestToCatalogItem(
 function getLatestPath(mediaType: LatestMediaType, page: number) {
   const LATEST_BASE_URL = process.env.NEXT_PUBLIC_MOVIE_DB_LATEST_URL ?? "";
   const base = LATEST_BASE_URL.replace(/\/+$/, "");
+  if (!base) return null;
   return `${base}/${mediaType}/latest/page-${page}.json`;
 }
 
@@ -365,9 +366,28 @@ export const getLatestSection = cache(
   }) => {
     const url = getLatestPath(mediaType, page);
 
-    const response = await fetch(url, {
-      next: { revalidate: 1800 },
-    });
+    if (!url) {
+      return {
+        page: 1,
+        results: [] as CatalogItem[],
+        total_pages: 1,
+        total_results: 0,
+      };
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        next: { revalidate: 1800 },
+      });
+    } catch {
+      return {
+        page: 1,
+        results: [] as CatalogItem[],
+        total_pages: 1,
+        total_results: 0,
+      };
+    }
 
     if (!response.ok) {
       return {
