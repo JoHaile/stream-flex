@@ -39,6 +39,15 @@ type FilterField = {
   value: string;
 };
 
+type ExtraField = {
+  ariaLabel: string;
+  clearValue: string;
+  defaultValue?: string;
+  label: string;
+  name: string;
+  options: SelectOption[];
+};
+
 type Props = {
   availabilityOptions?: SelectOption[];
   className?: string;
@@ -47,7 +56,8 @@ type Props = {
   defaultSort: CatalogSort;
   defaultType?: string;
   defaultYear?: string;
-  genreOptions: SelectOption[];
+  extraFields?: ExtraField[];
+  genreOptions?: SelectOption[];
   mediaTypeOptions?: SelectOption[];
   pathname?: string;
   resultLabel?: string;
@@ -64,6 +74,7 @@ export default function CatalogControls({
   defaultSort,
   defaultType = "all",
   defaultYear = "all",
+  extraFields,
   genreOptions,
   mediaTypeOptions,
   pathname,
@@ -92,14 +103,29 @@ export default function CatalogControls({
           },
         ]
       : []),
-    {
-      ariaLabel: "Filter by genre",
-      clearValue: "all",
-      label: "Genre",
-      name: "genre",
-      options: [{ label: "All genres", value: "all" }, ...genreOptions],
-      value: searchParams.get("genre") || defaultGenre || "all",
-    },
+    ...(genreOptions?.length
+      ? [
+          {
+            ariaLabel: "Filter by genre",
+            clearValue: "all",
+            label: "Genre",
+            name: "genre",
+            options: [{ label: "All genres", value: "all" }, ...genreOptions],
+            value: searchParams.get("genre") || defaultGenre || "all",
+          },
+        ]
+      : []),
+    ...(extraFields?.length
+      ? extraFields.map((field) => ({
+          ariaLabel: field.ariaLabel,
+          clearValue: field.clearValue,
+          label: field.label,
+          name: field.name,
+          options: field.options,
+          value:
+            searchParams.get(field.name) || field.defaultValue || field.clearValue,
+        }))
+      : []),
     {
       ariaLabel: "Filter by year",
       clearValue: "all",

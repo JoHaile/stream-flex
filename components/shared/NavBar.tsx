@@ -261,6 +261,7 @@ function NavBar() {
     { href: "/", label: "Home" },
     { href: "/movies", label: "Movies" },
     { href: "/tv-series", label: "Series" },
+    { href: "/anime", label: "Anime" },
   ];
 
   return (

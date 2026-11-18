@@ -288,6 +288,166 @@ export const getCatalogPage = cache(
   },
 );
 
+export const ANIMATION_GENRE_ID = 16;
+
+export type AnimeFormat = "all" | "movie" | "tv";
+export type AnimeOrigin = "all" | "anime";
+
+export interface AnimeQueryState {
+  format: AnimeFormat;
+  origin: AnimeOrigin;
+  page: number;
+  sort: CatalogSort;
+  year: string;
+}
+
+function isValidAnimeFormat(value: string | undefined): value is AnimeFormat {
+  return ["all", "movie", "tv"].includes(value ?? "");
+}
+
+function isValidAnimeOrigin(value: string | undefined): value is AnimeOrigin {
+  return ["all", "anime"].includes(value ?? "");
+}
+
+export function parseAnimeQuery(
+  searchParams: SearchParamsRecord,
+): AnimeQueryState {
+  const requestedFormat = getFirstValue(searchParams.format);
+  const requestedOrigin = getFirstValue(searchParams.origin);
+  const requestedYear = getFirstValue(searchParams.year);
+  const requestedSort = getFirstValue(searchParams.sort);
+
+  return {
+    format: isValidAnimeFormat(requestedFormat) ? requestedFormat : "all",
+    origin: isValidAnimeOrigin(requestedOrigin) ? requestedOrigin : "all",
+    page: parsePositiveInt(getFirstValue(searchParams.page), 1),
+    sort: isValidSort(requestedSort) ? requestedSort : "default",
+    year: /^\d{4}$/.test(requestedYear ?? "") ? requestedYear ?? "" : "",
+  };
+}
+
+function sortCatalogItems(items: CatalogItem[], sort: CatalogSort) {
+  if (sort === "default") {
+    return [...items].sort(
+      (left, right) => (right.popularity ?? 0) - (left.popularity ?? 0),
+    );
+  }
+
+  if (sort === "rating") {
+    return [...items].sort(
+      (left, right) => (right.vote_average ?? 0) - (left.vote_average ?? 0),
+    );
+  }
+
+  if (sort === "newest") {
+    return [...items].sort((left, right) =>
+      getItemDate(right).localeCompare(getItemDate(left)),
+    );
+  }
+
+  if (sort === "oldest") {
+    return [...items].sort((left, right) =>
+      getItemDate(left).localeCompare(getItemDate(right)),
+    );
+  }
+
+  return [...items].sort((left, right) =>
+    getItemTitle(left).localeCompare(getItemTitle(right)),
+  );
+}
+
+/**
+ * Animated catalog (movies + TV series) built from the TMDB Animation genre.
+ * `origin = "anime"` narrows the feed to Japanese animation, which is what
+ * most people mean by anime; `origin = "all"` keeps every animation.
+ */
+export const getAnimeCatalogPage = cache(
+  async ({
+    format = "all",
+    origin = "all",
+    page = 1,
+    sort = "default",
+    year,
+  }: {
+    format?: AnimeFormat;
+    origin?: AnimeOrigin;
+    page?: number;
+    sort?: CatalogSort;
+    year?: string;
+  }) => {
+    const mediaTypes: Array<Exclude<CatalogMediaType, "all">> =
+      format === "all" ? ["movie", "tv"] : [format];
+
+    const responses = await Promise.all(
+      mediaTypes.map(async (mediaType) => {
+        try {
+          return {
+            data: await tmdbFetch<CatalogResponse>(
+              `/discover/${mediaType}`,
+              {
+                include_adult: "false",
+                include_video: "false",
+                language: "en-US",
+                page,
+                sort_by: getDiscoverSort(mediaType, sort),
+                "vote_count.gte":
+                  sort === "default"
+                    ? 50
+                    : sort === "rating"
+                      ? 200
+                      : undefined,
+                with_genres: String(ANIMATION_GENRE_ID),
+                with_original_language: origin === "anime" ? "ja" : undefined,
+                ...(mediaType === "movie"
+                  ? { primary_release_year: year || undefined }
+                  : { first_air_date_year: year || undefined }),
+              },
+            ),
+            mediaType,
+          };
+        } catch (error) {
+          console.error(`Anime: failed to load ${mediaType}`, error);
+          return null;
+        }
+      }),
+    );
+
+    const loaded = responses.filter(
+      (entry): entry is { data: CatalogResponse; mediaType: Exclude<CatalogMediaType, "all"> } =>
+        entry !== null,
+    );
+
+    if (!loaded.length) {
+      return emptyCatalogResponse();
+    }
+
+    const seen = new Set<string>();
+    const merged: CatalogItem[] = [];
+
+    for (const { data, mediaType } of loaded) {
+      for (const item of data.results) {
+        const key = `${mediaType}-${item.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ ...item, media_type: mediaType });
+      }
+    }
+
+    return {
+      page,
+      results: sortCatalogItems(merged, sort),
+      total_pages: Math.min(
+        500,
+        Math.max(...loaded.map((entry) => entry.data.total_pages ?? 1)),
+      ),
+      total_results: loaded.reduce(
+        (total, entry) => total + (entry.data.total_results ?? 0),
+        0,
+      ),
+    };
+  },
+);
+
 function getSectionPath(
   mediaType: CatalogMediaType,
   section: CatalogSection,
