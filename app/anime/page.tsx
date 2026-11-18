@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   getAnimeCatalogPage,
+  getScopedSearch,
   getMediaHref,
   getMediaTitle,
   getMediaYear,
@@ -10,11 +11,13 @@ import {
   getSortOptions,
   getYearOptions,
   parseAnimeQuery,
+  parseSearchTerm,
   type SearchParamsRecord,
 } from "@/utils/catalog";
 import AnimeControls from "./AnimeControls";
 import { StarIcon } from "lucide-react";
 import Pagination from "@/components/shared/Pagination";
+import CategorySearch from "@/components/catalog/CategorySearch";
 
 export const metadata: Metadata = {
   title: "Anime & Animation | StreamFlix",
@@ -39,16 +42,24 @@ function getOriginLabel(origin: string) {
 }
 
 export default async function AnimePage({ searchParams }: Props) {
-  const query = parseAnimeQuery(await searchParams);
-  const data = await getAnimeCatalogPage({
-    format: query.format,
-    origin: query.origin,
-    page: query.page,
-    sort: query.sort,
-    year: query.year,
-  });
+  const sp = await searchParams;
+  const query = parseAnimeQuery(sp);
+  const searchTerm = parseSearchTerm(sp.search);
+  const data = searchTerm
+    ? await getScopedSearch({
+        page: query.page,
+        query: searchTerm,
+        scope: "anime",
+      })
+    : await getAnimeCatalogPage({
+        format: query.format,
+        origin: query.origin,
+        page: query.page,
+        sort: query.sort,
+        year: query.year,
+      });
 
-  const featured = data.results[0];
+  const featured = searchTerm ? undefined : data.results[0];
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
     : null;
@@ -140,7 +151,12 @@ export default async function AnimePage({ searchParams }: Props) {
       ) : null}
 
       <main className="page-container pb-16">
-        <div className="relative z-10 mb-8">
+        <div className="relative z-10 space-y-3 pt-6">
+          <CategorySearch
+            placeholder="Search anime & animation only…"
+            scope="anime"
+            scopeLabel="Anime"
+          />
           <AnimeControls
             defaultFormat={query.format}
             defaultOrigin={query.origin}
@@ -153,8 +169,16 @@ export default async function AnimePage({ searchParams }: Props) {
           />
         </div>
 
+        {searchTerm ? (
+          <p className="mt-5 text-xs text-zinc-500">
+            Results for{" "}
+            <span className="font-semibold text-zinc-200">“{searchTerm}”</span> in
+            anime &amp; animation
+          </p>
+        ) : null}
+
         {data.results.length ? (
-          <>
+          <div className="mt-5">
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {data.results.map((item) => {
                 const itemType = item.media_type === "tv" ? "tv" : "movie";
@@ -229,17 +253,22 @@ export default async function AnimePage({ searchParams }: Props) {
                 origin: query.origin !== "all" ? query.origin : undefined,
                 sort: query.sort !== "default" ? query.sort : undefined,
                 year: query.year || undefined,
+                search: searchTerm || undefined,
               }}
               totalPages={data.total_pages}
             />
-          </>
+          </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-6 py-16 text-center">
+          <div className="mt-6 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-6 py-16 text-center">
             <h2 className="text-xl font-semibold text-white">
-              No animated titles match these filters
+              {searchTerm
+                ? `No animation matches “${searchTerm}”`
+                : "No animated titles match these filters"}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-400">
-              Try switching the format or origin filter, or clear the year.
+              {searchTerm
+                ? "Try a shorter title, or clear the search to browse all anime and animation."
+                : "Try switching the format or origin filter, or clear the year."}
             </p>
           </div>
         )}

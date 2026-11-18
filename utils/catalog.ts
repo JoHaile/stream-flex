@@ -884,3 +884,73 @@ export const getMultiSearch = cache(
     };
   },
 );
+
+export type SearchScope = "movie" | "tv" | "anime";
+
+export function parseSearchTerm(value: SearchParamValue) {
+  const term = getFirstValue(value);
+  return typeof term === "string" ? term.trim() : "";
+}
+
+/**
+ * Search that stays inside one catalog. `scope = "anime"` runs the movie and TV
+ * searches and keeps only Animation results, so an Anime-tab search can never
+ * surface a live-action title.
+ */
+export const getScopedSearch = cache(
+  async ({
+    page = 1,
+    query,
+    scope,
+  }: {
+    page?: number;
+    query: string;
+    scope: SearchScope;
+  }) => {
+    const term = query.trim();
+    if (!term) return emptyCatalogResponse();
+
+    const params = {
+      include_adult: "false",
+      language: "en-US",
+      page,
+      query: term,
+    };
+
+    try {
+      if (scope === "anime") {
+        const [movies, series] = await Promise.all([
+          tmdbFetch<CatalogResponse>("/search/movie", params),
+          tmdbFetch<CatalogResponse>("/search/tv", params),
+        ]);
+
+        const merged: CatalogItem[] = [
+          ...movies.results.map((item) => ({
+            ...item,
+            media_type: "movie" as const,
+          })),
+          ...series.results.map((item) => ({
+            ...item,
+            media_type: "tv" as const,
+          })),
+        ].filter((item) => item.genre_ids?.includes(ANIMATION_GENRE_ID));
+
+        return {
+          page,
+          results: sortCatalogItems(merged, "default"),
+          total_pages: Math.min(
+            500,
+            Math.max(movies.total_pages ?? 1, series.total_pages ?? 1),
+          ),
+          total_results: merged.length,
+        };
+      }
+
+      const path = scope === "tv" ? "/search/tv" : "/search/movie";
+      return await tmdbFetch<CatalogResponse>(path, params);
+    } catch (error) {
+      console.error(`Search: failed to search ${scope} for "${term}"`, error);
+      return emptyCatalogResponse();
+    }
+  },
+);

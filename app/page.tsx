@@ -18,11 +18,24 @@ export default async function HomePage() {
     ]);
 
   const trendingAll = trendingData.results;
-  const popularMovies = popularMoviesData.results;
-  const topRatedTV = topRatedTVData.results;
-  const latestTV = latestTVData.results;
-  const latestMovies = latestMovieData.results;
-  const featured = trendingAll[0];
+  // One title per row: whatever already appeared higher up the page is dropped,
+  // so the anime row adds something rather than repeating Trending Now.
+  const seen = new Set<string>();
+  const uniqueItems = (items: typeof trendingAll) =>
+    items.filter((item) => {
+      const key = `${item.media_type ?? "movie"}-${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  const uniqueTrending = uniqueItems(trendingAll);
+  const popularMovies = uniqueItems(popularMoviesData.results);
+  const topRatedTV = uniqueItems(topRatedTVData.results);
+  const animeRow = uniqueItems(animeMix);
+  const latestMovies = uniqueItems(latestMovieData.results);
+  const latestTV = uniqueItems(latestTVData.results);
+  const featured = uniqueTrending[0];
 
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
@@ -111,7 +124,7 @@ export default async function HomePage() {
       <div className="page-container space-y-10 py-8">
         <MediaRow
           title="Trending Now"
-          items={trendingAll}
+          items={uniqueTrending}
           seeAllHref="/discover/movie/trending"
         />
 
@@ -131,7 +144,7 @@ export default async function HomePage() {
 
         <MediaRow
           title="Anime & Animation"
-          items={animeMix}
+          items={animeRow}
           seeAllHref="/anime"
         />
 

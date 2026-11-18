@@ -471,7 +471,6 @@ export default function TVSeriesDetailClient({
         ) : null}
 
         <section className="mb-10">
-          <h2 className="mb-4 text-xl font-bold text-white">Episodes</h2>
           <EpisodeList
             currentEpisode={currentEpisode}
             initialEpisodes={initialEpisodes}
@@ -482,6 +481,7 @@ export default function TVSeriesDetailClient({
             onEpisodeSelect={handleEpisodeSelect}
             seasons={seriesData.seasons || []}
             seriesId={seriesId}
+            variant="grid"
           />
         </section>
 

@@ -1,12 +1,19 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { useTransition, type ComponentType } from "react";
 import {
+  ArrowUpDownIcon,
+  CalendarIcon,
+  ClapperboardIcon,
+  GlobeIcon,
   LoaderCircleIcon,
   RotateCcwIcon,
+  ShapesIcon,
   SlidersHorizontalIcon,
+  TagIcon,
   XIcon,
+  type LucideProps,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,16 +36,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { CatalogSort, SelectOption } from "@/utils/catalog";
 
-type FilterField = {
-  ariaLabel: string;
-  clearValue: string;
-  label: string;
-  name: string;
-  options: SelectOption[];
-  resetParams?: string[];
-  value: string;
-};
-
 type ExtraField = {
   ariaLabel: string;
   clearValue: string;
@@ -46,6 +43,17 @@ type ExtraField = {
   label: string;
   name: string;
   options: SelectOption[];
+};
+
+type FilterField = {
+  ariaLabel: string;
+  clearValue: string;
+  icon: ComponentType<LucideProps>;
+  label: string;
+  name: string;
+  options: SelectOption[];
+  resetParams?: string[];
+  value: string;
 };
 
 type Props = {
@@ -64,6 +72,26 @@ type Props = {
   sortOptions: SelectOption[];
   totalResults?: number;
   yearOptions: SelectOption[];
+};
+
+const FIELD_ICONS: Record<string, ComponentType<LucideProps>> = {
+  availability: ClapperboardIcon,
+  format: ShapesIcon,
+  genre: TagIcon,
+  origin: GlobeIcon,
+  sort: ArrowUpDownIcon,
+  type: ShapesIcon,
+  year: CalendarIcon,
+};
+
+// Static class strings so Tailwind keeps them; the row is only balanced when the
+// grid column count matches the number of filters a page actually renders.
+const PILL_GRID_COLUMNS: Record<number, string> = {
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-3 xl:grid-cols-5",
+  6: "lg:grid-cols-3 xl:grid-cols-6",
 };
 
 export default function CatalogControls({
@@ -95,6 +123,7 @@ export default function CatalogControls({
           {
             ariaLabel: "Filter by type",
             clearValue: "all",
+            icon: FIELD_ICONS.type,
             label: "Type",
             name: "type",
             options: mediaTypeOptions,
@@ -108,6 +137,7 @@ export default function CatalogControls({
           {
             ariaLabel: "Filter by genre",
             clearValue: "all",
+            icon: FIELD_ICONS.genre,
             label: "Genre",
             name: "genre",
             options: [{ label: "All genres", value: "all" }, ...genreOptions],
@@ -119,16 +149,20 @@ export default function CatalogControls({
       ? extraFields.map((field) => ({
           ariaLabel: field.ariaLabel,
           clearValue: field.clearValue,
+          icon: FIELD_ICONS[field.name] ?? SlidersHorizontalIcon,
           label: field.label,
           name: field.name,
           options: field.options,
           value:
-            searchParams.get(field.name) || field.defaultValue || field.clearValue,
+            searchParams.get(field.name) ||
+            field.defaultValue ||
+            field.clearValue,
         }))
       : []),
     {
       ariaLabel: "Filter by year",
       clearValue: "all",
+      icon: FIELD_ICONS.year,
       label: "Year",
       name: "year",
       options: [{ label: "Any year", value: "all" }, ...yearOptions],
@@ -139,19 +173,19 @@ export default function CatalogControls({
           {
             ariaLabel: "Filter by availability",
             clearValue: "all",
+            icon: FIELD_ICONS.availability,
             label: "Availability",
             name: "availability",
             options: availabilityOptions,
             value:
-              searchParams.get("availability") ||
-              defaultAvailability ||
-              "all",
+              searchParams.get("availability") || defaultAvailability || "all",
           },
         ]
       : []),
     {
       ariaLabel: "Sort results",
       clearValue: "default",
+      icon: FIELD_ICONS.sort,
       label: "Sort",
       name: "sort",
       options: sortOptions,
@@ -162,12 +196,15 @@ export default function CatalogControls({
   const activeFilters = fields
     .filter((field) => field.value && field.value !== field.clearValue)
     .map((field) => ({
+      field,
       label: field.label,
       value:
         field.options.find((option) => option.value === field.value)?.label ??
         field.value,
     }));
   const activeFilterCount = activeFilters.length;
+  const pillGridColumns =
+    PILL_GRID_COLUMNS[fields.length] ?? PILL_GRID_COLUMNS[5];
   const summaryLabel =
     resultLabel ??
     (typeof totalResults === "number"
@@ -176,7 +213,9 @@ export default function CatalogControls({
 
   const pushParams = (params: URLSearchParams) => {
     const queryString = params.toString();
-    const nextHref = queryString ? `${targetPathname}?${queryString}` : targetPathname;
+    const nextHref = queryString
+      ? `${targetPathname}?${queryString}`
+      : targetPathname;
 
     startTransition(() => {
       router.push(nextHref, { scroll: false });
@@ -201,92 +240,104 @@ export default function CatalogControls({
   };
 
   const resetFilters = () => {
-    startTransition(() => {
-      router.push(targetPathname, { scroll: false });
-    });
+    const params = new URLSearchParams(searchParams.toString());
+    // Keep an active category search; "Reset" only clears the filters.
+    const search = params.get("search");
+    const next = new URLSearchParams();
+    if (search) next.set("search", search);
+    pushParams(next);
   };
 
   return (
     <section
-      className={cn(
-        "relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/75 p-4 text-white shadow-2xl shadow-black/35 ring-1 ring-white/5 backdrop-blur-xl sm:p-5",
-        isPending && "opacity-90",
-        className,
-      )}
+      className={cn("relative text-white", isPending && "opacity-90", className)}
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red-500/70 to-transparent" />
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900/85 to-zinc-950/70 shadow-xl shadow-black/30 backdrop-blur-xl">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-red-500">
-            <SlidersHorizontalIcon className="size-3.5" />
-            Filters
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-white sm:text-base">
+        <div className="flex items-center justify-between gap-3 px-3 pt-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
+              <SlidersHorizontalIcon className="size-3.5 text-zinc-300" />
+            </span>
+            <p className="truncate text-xs font-medium text-zinc-300">
               {summaryLabel}
             </p>
             {activeFilterCount ? (
-              <span className="rounded-md border border-red-500/25 bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-200">
+              <span className="hidden shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-300 sm:inline">
                 {activeFilterCount} active
               </span>
             ) : null}
           </div>
+
+          <div className="flex shrink-0 items-center gap-1">
+            {activeFilterCount ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                disabled={isPending}
+                className="hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 transition hover:bg-white/5 hover:text-white sm:flex"
+              >
+                <RotateCcwIcon className="size-3" />
+                Reset
+              </button>
+            ) : null}
+
+            <MobileFilterDrawer
+              activeFilterCount={activeFilterCount}
+              fields={fields}
+              isPending={isPending}
+              onReset={resetFilters}
+              onUpdate={updateQuery}
+              summaryLabel={summaryLabel}
+            />
+          </div>
         </div>
 
-        <MobileFilterDrawer
-          activeFilterCount={activeFilterCount}
-          fields={fields}
-          isPending={isPending}
-          onReset={resetFilters}
-          onUpdate={updateQuery}
-          summaryLabel={summaryLabel}
-        />
-      </div>
-
-      <div className="mt-4 hidden items-end gap-3 lg:flex">
-        <div className="grid flex-1 grid-cols-4 gap-3 xl:grid-cols-5">
+        <div
+          className={cn(
+            "hide-scrollbar flex gap-2 overflow-x-auto px-3 py-3 sm:flex-wrap sm:px-4 lg:grid",
+            pillGridColumns,
+          )}
+        >
           {fields.map((field) => (
-            <CatalogFilterSelect
+            <div
               key={field.name}
-              field={field}
-              onChange={updateQuery}
-            />
+              className="min-w-[8.5rem] shrink-0 sm:min-w-0 lg:w-full"
+            >
+              <CatalogFilterPill field={field} onChange={updateQuery} />
+            </div>
           ))}
         </div>
 
-        {activeFilterCount ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={resetFilters}
-            disabled={isPending}
-            className="h-10 border-zinc-700 bg-zinc-900/80 px-3 text-zinc-300 hover:bg-zinc-800 hover:text-white"
-          >
-            <RotateCcwIcon className="size-4" />
-            Reset
-          </Button>
+        {activeFilters.length ? (
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-white/5 px-3 py-2.5 sm:px-4">
+            <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              Active
+            </span>
+            {activeFilters.map(({ field, label, value }) => (
+              <button
+                key={`${field.name}-${value}`}
+                type="button"
+                onClick={() => updateQuery(field, field.clearValue)}
+                title={`Clear ${label}`}
+                className="group/chip inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] py-1 pl-2.5 pr-1.5 text-xs text-zinc-200 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-white"
+              >
+                <span className="text-zinc-500 group-hover/chip:text-red-300">
+                  {label}
+                </span>
+                {value}
+                <XIcon className="size-3 text-zinc-500 group-hover/chip:text-white" />
+              </button>
+            ))}
+          </div>
         ) : null}
       </div>
-
-      {activeFilters.length ? (
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-          {activeFilters.map((filter) => (
-            <span
-              key={`${filter.label}-${filter.value}`}
-              className="shrink-0 rounded-md border border-zinc-700 bg-zinc-900/80 px-2.5 py-1 text-xs text-zinc-300"
-            >
-              {filter.label}: {filter.value}
-            </span>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }
 
-function CatalogFilterSelect({
+function CatalogFilterPill({
   field,
   isMobile = false,
   onChange,
@@ -295,38 +346,56 @@ function CatalogFilterSelect({
   isMobile?: boolean;
   onChange: (field: FilterField, value: string) => void;
 }) {
+  const isActive = field.value !== field.clearValue;
+  const Icon = field.icon;
+  const optionLabel = (value: string) =>
+    field.options.find((option) => option.value === value)?.label ?? value;
+
   return (
-    <div className="min-w-0">
-      <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-        {field.label}
-      </label>
-      <Select
-        value={field.value}
-        onValueChange={(value) => onChange(field, value ?? field.clearValue)}
+    <Select
+      value={field.value}
+      onValueChange={(value) => onChange(field, value ?? field.clearValue)}
+    >
+      <SelectTrigger
+        aria-label={field.ariaLabel}
+        className={cn(
+          "group flex w-full items-center gap-2 rounded-full border px-3 py-2 text-xs transition",
+          "data-[size=default]:h-9 data-[size=sm]:h-9",
+          isMobile && "h-11 rounded-xl text-sm",
+          isActive
+            ? "border-red-500/40 bg-red-500/10 text-white hover:bg-red-500/15"
+            : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/[0.08]",
+        )}
       >
-        <SelectTrigger
-          size="sm"
-          aria-label={field.ariaLabel}
+        <Icon
           className={cn(
-            "w-full border-zinc-700 bg-zinc-900/80 px-3 text-sm text-zinc-100 shadow-inner shadow-black/20 hover:bg-zinc-800 focus-visible:border-red-500/50 focus-visible:ring-red-500/20 data-[size=sm]:h-10",
-            isMobile && "data-[size=sm]:h-11",
+            "size-3.5 shrink-0",
+            isActive ? "text-red-300" : "text-zinc-500",
           )}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="z-[60] border border-zinc-700 bg-zinc-950 text-zinc-100 shadow-2xl">
-          {field.options.map((option) => (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              className="text-sm focus:bg-red-500/15 focus:text-white"
-            >
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+        />
+        <span className="hidden text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 md:inline">
+          {field.label}
+        </span>
+        <SelectValue className="min-w-0 flex-1 truncate text-left font-medium text-white">
+          {(value) => optionLabel(typeof value === "string" ? value : field.value)}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        align="start"
+        alignItemWithTrigger={false}
+        className="z-[60] rounded-xl border border-white/10 bg-zinc-950/95 text-zinc-100 shadow-2xl shadow-black/60 backdrop-blur-xl"
+      >
+        {field.options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="rounded-lg text-sm focus:bg-red-500/15 focus:text-white"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -350,24 +419,24 @@ function MobileFilterDrawer({
       <DrawerTrigger asChild>
         <Button
           type="button"
-          variant="outline"
-          className="h-10 shrink-0 border-zinc-700 bg-zinc-900/80 px-3 text-white hover:bg-zinc-800 lg:hidden"
+          variant="ghost"
+          className="h-9 gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-zinc-200 hover:bg-white/10 hover:text-white lg:hidden"
           aria-label="Open filters"
         >
           {isPending ? (
-            <LoaderCircleIcon className="size-4 animate-spin" />
+            <LoaderCircleIcon className="size-3.5 animate-spin" />
           ) : (
-            <SlidersHorizontalIcon className="size-4" />
+            <SlidersHorizontalIcon className="size-3.5" />
           )}
           Filters
           {activeFilterCount ? (
-            <span className="ml-1 rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+            <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
               {activeFilterCount}
             </span>
           ) : null}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="border-zinc-800 bg-zinc-950 text-white">
+      <DrawerContent className="border-white/10 bg-zinc-950 text-white">
         <DrawerHeader className="flex-row items-start justify-between gap-4 text-left">
           <div>
             <DrawerTitle className="text-white">Filters</DrawerTitle>
@@ -380,7 +449,7 @@ function MobileFilterDrawer({
               type="button"
               variant="ghost"
               size="icon"
-              className="text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              className="text-zinc-400 hover:bg-white/10 hover:text-white"
               aria-label="Close filters"
             >
               <XIcon className="size-4" />
@@ -390,23 +459,23 @@ function MobileFilterDrawer({
 
         <div className="grid max-h-[55vh] gap-4 overflow-y-auto px-4 pb-4">
           {fields.map((field) => (
-            <CatalogFilterSelect
-              key={field.name}
-              field={field}
-              isMobile
-              onChange={onUpdate}
-            />
+            <div key={field.name}>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                {field.label}
+              </label>
+              <CatalogFilterPill field={field} isMobile onChange={onUpdate} />
+            </div>
           ))}
         </div>
 
-        <DrawerFooter className="border-t border-zinc-800">
+        <DrawerFooter className="border-t border-white/10">
           <DrawerClose asChild>
             <Button
               type="button"
               variant="outline"
               onClick={onReset}
               disabled={!activeFilterCount || isPending}
-              className="h-10 border-zinc-700 bg-zinc-900/80 text-zinc-200 hover:bg-zinc-800 hover:text-white"
+              className="h-10 rounded-full border-white/10 bg-white/[0.04] text-zinc-200 hover:bg-white/10 hover:text-white"
             >
               <RotateCcwIcon className="size-4" />
               Reset filters
