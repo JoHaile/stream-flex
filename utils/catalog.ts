@@ -291,7 +291,7 @@ export const getCatalogPage = cache(
 export const ANIMATION_GENRE_ID = 16;
 
 export type AnimeFormat = "all" | "movie" | "tv";
-export type AnimeOrigin = "all" | "anime";
+export type AnimeOrigin = "all" | "anime" | "english";
 
 export interface AnimeQueryState {
   format: AnimeFormat;
@@ -306,7 +306,7 @@ function isValidAnimeFormat(value: string | undefined): value is AnimeFormat {
 }
 
 function isValidAnimeOrigin(value: string | undefined): value is AnimeOrigin {
-  return ["all", "anime"].includes(value ?? "");
+  return ["all", "anime", "english"].includes(value ?? "");
 }
 
 export function parseAnimeQuery(
@@ -359,7 +359,8 @@ function sortCatalogItems(items: CatalogItem[], sort: CatalogSort) {
 /**
  * Animated catalog (movies + TV series) built from the TMDB Animation genre.
  * `origin = "anime"` narrows the feed to Japanese animation, which is what
- * most people mean by anime; `origin = "all"` keeps every animation.
+ * most people mean by anime; `origin = "english"` keeps English-language
+ * (mostly Western) animation; `origin = "all"` keeps every animation.
  */
 export const getAnimeCatalogPage = cache(
   async ({
@@ -397,7 +398,12 @@ export const getAnimeCatalogPage = cache(
                       ? 200
                       : undefined,
                 with_genres: String(ANIMATION_GENRE_ID),
-                with_original_language: origin === "anime" ? "ja" : undefined,
+                with_original_language:
+                  origin === "anime"
+                    ? "ja"
+                    : origin === "english"
+                      ? "en"
+                      : undefined,
                 ...(mediaType === "movie"
                   ? { primary_release_year: year || undefined }
                   : { first_air_date_year: year || undefined }),
@@ -447,6 +453,41 @@ export const getAnimeCatalogPage = cache(
     };
   },
 );
+
+/**
+ * Home-page row that deliberately alternates Japanese anime with
+ * English-language animation so the line-up reads as a mix of both, not one
+ * block of anime followed by a block of Western cartoons.
+ */
+export const getAnimeMixRow = cache(async (limit = 20) => {
+  const [animeFeed, westernFeed] = await Promise.all([
+    getAnimeCatalogPage({ origin: "anime", page: 1, sort: "default" }),
+    getAnimeCatalogPage({ origin: "english", page: 1, sort: "default" }),
+  ]);
+
+  const seen = new Set<string>();
+  const mixed: CatalogItem[] = [];
+  const longestStream = Math.max(
+    animeFeed.results.length,
+    westernFeed.results.length,
+  );
+
+  for (let index = 0; index < longestStream; index += 1) {
+    for (const item of [animeFeed.results[index], westernFeed.results[index]]) {
+      if (!item || mixed.length >= limit) continue;
+
+      const key = `${item.media_type}-${item.id}`;
+      if (seen.has(key)) continue;
+
+      seen.add(key);
+      mixed.push(item);
+    }
+
+    if (mixed.length >= limit) break;
+  }
+
+  return mixed;
+});
 
 function getSectionPath(
   mediaType: CatalogMediaType,

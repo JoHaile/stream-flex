@@ -33,7 +33,9 @@ type Props = {
 };
 
 function getOriginLabel(origin: string) {
-  return origin === "anime" ? "Anime" : "Anime & Animation";
+  if (origin === "anime") return "Anime";
+  if (origin === "english") return "Western Animation";
+  return "Anime & Animation";
 }
 
 export default async function AnimePage({ searchParams }: Props) {

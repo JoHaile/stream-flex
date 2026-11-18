@@ -3,17 +3,18 @@ import Link from "next/link";
 import MediaRow from "@/components/shared/MediaRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getFeedSection, getLatestSection, getMediaHref, getSectionTitle } from "@/utils/catalog";
+import { getFeedSection, getAnimeMixRow, getLatestSection, getMediaHref, getSectionTitle } from "@/utils/catalog";
 import { InfoIcon, PlayIcon, StarIcon } from "lucide-react";
 
 export default async function HomePage() {
-  const [trendingData, popularMoviesData, topRatedTVData, latestTVData, latestMovieData] =
+  const [trendingData, popularMoviesData, topRatedTVData, latestTVData, latestMovieData, animeMix] =
     await Promise.all([
       getFeedSection({ mediaType: "movie", section: "trending" }),
       getFeedSection({ mediaType: "movie", section: "popular" }),
       getFeedSection({ mediaType: "tv", section: "top-rated" }),
       getLatestSection({ mediaType: "tvshows", page: 1 }),
       getLatestSection({ mediaType: "movies", page: 1 }),
+      getAnimeMixRow(20),
     ]);
 
   const trendingAll = trendingData.results;
@@ -126,6 +127,12 @@ export default async function HomePage() {
           items={topRatedTV}
           mediaType="tv"
           seeAllHref="/discover/tv/top-rated"
+        />
+
+        <MediaRow
+          title="Anime & Animation"
+          items={animeMix}
+          seeAllHref="/anime"
         />
 
         <MediaRow

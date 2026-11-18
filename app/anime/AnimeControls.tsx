@@ -10,6 +10,7 @@ export const animeFormatOptions: SelectOption[] = [
 export const animeOriginOptions: SelectOption[] = [
   { label: "All animation", value: "all" },
   { label: "Anime (Japanese)", value: "anime" },
+  { label: "Western animation", value: "english" },
 ];
 
 type Props = {
