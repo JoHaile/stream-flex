@@ -187,6 +187,15 @@ async function tmdbFetch<T>(
   return response.json() as Promise<T>;
 }
 
+function emptyCatalogResponse(): CatalogResponse {
+  return {
+    page: 1,
+    results: [] as CatalogItem[],
+    total_pages: 1,
+    total_results: 0,
+  };
+}
+
 function enrichMediaType(
   items: CatalogItem[],
   mediaType: Exclude<CatalogMediaType, "all"> | "all",
@@ -250,20 +259,26 @@ export const getCatalogPage = cache(
             : { "air_date.gte": today }
           : {};
 
-    const data = await tmdbFetch<CatalogResponse>(`/discover/${mediaType}`, {
-      include_adult: "false",
-      include_video: mediaType === "movie" ? "false" : undefined,
-      language: "en-US",
-      page,
-      sort_by: getDiscoverSort(mediaType, sort),
-      vote_count: undefined,
-      "vote_count.gte": sort === "rating" ? 200 : undefined,
-      with_genres: genre || undefined,
-      ...availabilityFilter,
-      ...(mediaType === "movie"
-        ? { primary_release_year: year || undefined }
-        : { first_air_date_year: year || undefined }),
-    });
+    let data: CatalogResponse;
+    try {
+      data = await tmdbFetch<CatalogResponse>(`/discover/${mediaType}`, {
+        include_adult: "false",
+        include_video: mediaType === "movie" ? "false" : undefined,
+        language: "en-US",
+        page,
+        sort_by: getDiscoverSort(mediaType, sort),
+        vote_count: undefined,
+        "vote_count.gte": sort === "rating" ? 200 : undefined,
+        with_genres: genre || undefined,
+        ...availabilityFilter,
+        ...(mediaType === "movie"
+          ? { primary_release_year: year || undefined }
+          : { first_air_date_year: year || undefined }),
+      });
+    } catch (error) {
+      console.error(`Catalog: failed to load ${mediaType}`, error);
+      return emptyCatalogResponse();
+    }
 
     return {
       ...data,
@@ -302,10 +317,16 @@ export const getFeedSection = cache(
     page?: number;
     section: CatalogSection;
   }) => {
-    const data = await tmdbFetch<CatalogResponse>(getSectionPath(mediaType, section), {
-      language: "en-US",
-      page,
-    });
+    let data: CatalogResponse;
+    try {
+      data = await tmdbFetch<CatalogResponse>(getSectionPath(mediaType, section), {
+        language: "en-US",
+        page,
+      });
+    } catch (error) {
+      console.error(`Feed: failed to load ${mediaType}/${section}`, error);
+      return emptyCatalogResponse();
+    }
 
     return {
       ...data,
