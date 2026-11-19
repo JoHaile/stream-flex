@@ -8,7 +8,7 @@ export const animeFormatOptions: SelectOption[] = [
 ];
 
 export const animeOriginOptions: SelectOption[] = [
-  { label: "All animation", value: "all" },
+  { label: "Mix · anime first", value: "all" },
   { label: "Anime (Japanese)", value: "anime" },
   { label: "Western animation", value: "english" },
 ];

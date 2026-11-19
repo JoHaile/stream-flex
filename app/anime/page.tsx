@@ -59,7 +59,15 @@ export default async function AnimePage({ searchParams }: Props) {
         year: query.year,
       });
 
-  const featured = searchTerm ? undefined : data.results[0];
+  // The cover leads with a Japanese anime title (AOT, Demon Slayer, etc.)
+  // unless the user explicitly filtered to Western animation or is searching.
+  const preferJapanese = !searchTerm && query.origin !== "english";
+  const featured = searchTerm
+    ? undefined
+    : preferJapanese
+      ? (data.results.find((item) => item.original_language === "ja") ??
+        data.results[0])
+      : data.results[0];
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
     : null;
@@ -189,6 +197,8 @@ export default async function AnimePage({ searchParams }: Props) {
                 const posterUrl = item.poster_path
                   ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
                   : null;
+                const originLabel =
+                  item.original_language === "ja" ? "Anime" : "Western";
 
                 return (
                   <Link
@@ -236,6 +246,15 @@ export default async function AnimePage({ searchParams }: Props) {
                         {title}
                       </h3>
                       <div className="mt-1 flex items-center gap-2 text-xs text-zinc-400">
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                            item.original_language === "ja"
+                              ? "bg-red-500/15 text-red-400"
+                              : "bg-zinc-800 text-zinc-400"
+                          }`}
+                        >
+                          {originLabel}
+                        </span>
                         {year ? <span>{year}</span> : null}
                         {genre ? <span>{genre}</span> : null}
                       </div>

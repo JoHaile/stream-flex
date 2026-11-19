@@ -360,7 +360,9 @@ function sortCatalogItems(items: CatalogItem[], sort: CatalogSort) {
  * Animated catalog (movies + TV series) built from the TMDB Animation genre.
  * `origin = "anime"` narrows the feed to Japanese animation, which is what
  * most people mean by anime; `origin = "english"` keeps English-language
- * (mostly Western) animation; `origin = "all"` keeps every animation.
+ * (mostly Western) animation; `origin = "all"` (the default) interleaves both
+ * with Japanese anime leading, so the page opens with anime instead of
+ * whatever global popularity puts on top.
  */
 export const getAnimeCatalogPage = cache(
   async ({
@@ -379,69 +381,105 @@ export const getAnimeCatalogPage = cache(
     const mediaTypes: Array<Exclude<CatalogMediaType, "all">> =
       format === "all" ? ["movie", "tv"] : [format];
 
+    const languages: Array<"ja" | "en"> =
+      origin === "anime" ? ["ja"] : origin === "english" ? ["en"] : ["ja", "en"];
+
     const responses = await Promise.all(
-      mediaTypes.map(async (mediaType) => {
-        try {
-          return {
-            data: await tmdbFetch<CatalogResponse>(
-              `/discover/${mediaType}`,
-              {
-                include_adult: "false",
-                include_video: "false",
-                language: "en-US",
-                page,
-                sort_by: getDiscoverSort(mediaType, sort),
-                "vote_count.gte":
-                  sort === "default"
-                    ? 50
-                    : sort === "rating"
-                      ? 200
-                      : undefined,
-                with_genres: String(ANIMATION_GENRE_ID),
-                with_original_language:
-                  origin === "anime"
-                    ? "ja"
-                    : origin === "english"
-                      ? "en"
-                      : undefined,
-                ...(mediaType === "movie"
-                  ? { primary_release_year: year || undefined }
-                  : { first_air_date_year: year || undefined }),
-              },
-            ),
-            mediaType,
-          };
-        } catch (error) {
-          console.error(`Anime: failed to load ${mediaType}`, error);
-          return null;
-        }
-      }),
+      mediaTypes.flatMap((mediaType) =>
+        languages.map(async (language) => {
+          try {
+            return {
+              data: await tmdbFetch<CatalogResponse>(
+                `/discover/${mediaType}`,
+                {
+                  include_adult: "false",
+                  include_video: "false",
+                  language: "en-US",
+                  page,
+                  sort_by: getDiscoverSort(mediaType, sort),
+                  "vote_count.gte":
+                    sort === "default"
+                      ? 50
+                      : sort === "rating"
+                        ? 200
+                        : undefined,
+                  with_genres: String(ANIMATION_GENRE_ID),
+                  with_original_language: language,
+                  ...(mediaType === "movie"
+                    ? { primary_release_year: year || undefined }
+                    : { first_air_date_year: year || undefined }),
+                },
+              ),
+              mediaType,
+              language,
+            };
+          } catch (error) {
+            console.error(
+              `Anime: failed to load ${mediaType}/${language}`,
+              error,
+            );
+            return null;
+          }
+        }),
+      ),
     );
 
     const loaded = responses.filter(
-      (entry): entry is { data: CatalogResponse; mediaType: Exclude<CatalogMediaType, "all"> } =>
-        entry !== null,
+      (
+        entry,
+      ): entry is {
+        data: CatalogResponse;
+        mediaType: Exclude<CatalogMediaType, "all">;
+        language: "ja" | "en";
+      } => entry !== null,
     );
 
     if (!loaded.length) {
       return emptyCatalogResponse();
     }
 
-    const seen = new Set<string>();
-    const merged: CatalogItem[] = [];
-
-    for (const { data, mediaType } of loaded) {
-      for (const item of data.results) {
-        const key = `${mediaType}-${item.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push({ ...item, media_type: mediaType });
+    const dedupeAndSort = (entries: typeof loaded) => {
+      const seen = new Set<string>();
+      const items: CatalogItem[] = [];
+      for (const { data, mediaType } of entries) {
+        for (const item of data.results) {
+          const key = `${mediaType}-${item.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          items.push({ ...item, media_type: mediaType });
+        }
       }
+      return sortCatalogItems(items, sort);
+    };
+
+    let results: CatalogItem[];
+    if (origin === "all" && sort === "default") {
+      // Anime-led mix: alternate the Japanese and Western streams starting
+      // with the Japanese one, so the list opens with anime but still mixes
+      // both origins throughout. Explicit sorts keep their global ordering.
+      const japanese = dedupeAndSort(loaded.filter((e) => e.language === "ja"));
+      const western = dedupeAndSort(
+        loaded.filter((e) => e.language === "en"),
+      );
+      const seen = new Set<string>();
+      results = [];
+      const longestStream = Math.max(japanese.length, western.length);
+      for (let index = 0; index < longestStream; index += 1) {
+        for (const item of [japanese[index], western[index]]) {
+          if (!item) continue;
+          const key = `${item.media_type}-${item.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          results.push(item);
+        }
+      }
+    } else {
+      results = dedupeAndSort(loaded);
     }
 
     return {
       page,
-      results: sortCatalogItems(merged, sort),
+      results,
       total_pages: Math.min(
         500,
         Math.max(...loaded.map((entry) => entry.data.total_pages ?? 1)),
