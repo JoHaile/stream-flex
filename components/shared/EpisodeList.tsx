@@ -13,6 +13,13 @@ import {
   XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Episode {
   id: number;
@@ -103,11 +110,11 @@ function Pager({
         onClick={() => onChange(page - 1)}
         disabled={page <= 1}
         aria-label={`${label}: previous page`}
-        className="flex size-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+        className="flex size-9 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:size-8"
       >
         <ChevronLeft className="size-4" />
       </button>
-      <span className="min-w-[54px] text-center text-[11px] font-bold tabular-nums text-zinc-400">
+      <span className="min-w-[54px] text-center text-xs font-bold tabular-nums text-zinc-400 sm:text-[11px]">
         {page} / {totalPages}
       </span>
       <button
@@ -115,7 +122,7 @@ function Pager({
         onClick={() => onChange(page + 1)}
         disabled={page >= totalPages}
         aria-label={`${label}: next page`}
-        className="flex size-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+        className="flex size-9 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:size-8"
       >
         <ChevronRight className="size-4" />
       </button>
@@ -138,6 +145,85 @@ function syncUrl(season: number, page: number) {
     null,
     "",
     `${window.location.pathname}?${params.toString()}`,
+  );
+}
+
+function SeasonStepper({
+  seasons,
+  selected,
+  onSelect,
+}: {
+  seasons: Season[];
+  selected: number;
+  onSelect: (season: number) => void;
+}) {
+  const index = seasons.findIndex((season) => season.season_number === selected);
+
+  const step = (delta: number) => {
+    const next = seasons[index + delta];
+    if (next) onSelect(next.season_number);
+  };
+
+  const stepClass =
+    "flex size-10 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-300 transition hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 sm:size-9";
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => step(-1)}
+        disabled={index <= 0}
+        aria-label="Previous season"
+        className={stepClass}
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+
+      <Select
+        value={selected}
+        onValueChange={(value) => {
+          if (typeof value === "number") onSelect(value);
+        }}
+      >
+        <SelectTrigger
+          aria-label="Choose season"
+          className="h-10 min-w-0 flex-1 justify-between rounded-full border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] data-[size=default]:h-10 sm:h-9 sm:w-[150px] sm:flex-none sm:data-[size=default]:h-9"
+        >
+          <SelectValue>
+            {(value) => `Season ${typeof value === "number" ? value : selected}`}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent
+          align="start"
+          alignItemWithTrigger={false}
+          className="z-[60] max-h-72 rounded-xl border border-white/10 bg-zinc-950/95 text-zinc-100 shadow-2xl shadow-black/60 backdrop-blur-xl"
+        >
+          {seasons.map((season) => (
+            <SelectItem
+              key={season.id}
+              value={season.season_number}
+              className="rounded-lg text-sm focus:bg-red-500/15 focus:text-white"
+            >
+              Season {season.season_number}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <button
+        type="button"
+        onClick={() => step(1)}
+        disabled={index < 0 || index >= seasons.length - 1}
+        aria-label="Next season"
+        className={stepClass}
+      >
+        <ChevronRight className="size-4" />
+      </button>
+
+      <span className="hidden shrink-0 text-xs font-semibold tabular-nums text-zinc-500 lg:block">
+        {index + 1} / {seasons.length}
+      </span>
+    </div>
   );
 }
 
@@ -189,7 +275,6 @@ export default function EpisodeList({
     page: Math.max(1, initialPage),
   });
   const pageSize = useEpisodePageSize();
-  const railRef = useRef<HTMLDivElement>(null);
   const gridTopRef = useRef<HTMLDivElement>(null);
 
   // Read synchronously so the fetch effect can check the cache without listing it
@@ -239,14 +324,6 @@ export default function EpisodeList({
     if (!episodes) return;
     onEpisodesLoaded?.(selectedSeason, episodes);
   }, [episodes, selectedSeason, onEpisodesLoaded]);
-
-  // The rail scrolls the active season into view so the current choice is never
-  // hidden off-screen.
-  useEffect(() => {
-    const rail = railRef.current;
-    const active = rail?.querySelector<HTMLElement>("[data-active=true]");
-    active?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [selectedSeason]);
 
   const filteredSeasons = seasons.filter((season) => season.season_number > 0);
 
@@ -313,8 +390,7 @@ export default function EpisodeList({
   return (
     <div className="flex h-full flex-col">
       <div ref={gridTopRef} className="mb-4 scroll-mt-24 space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
+        <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-red-400">
               <span className="size-1.5 rounded-full bg-red-500" />
               Season {selectedSeason}
@@ -332,23 +408,32 @@ export default function EpisodeList({
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* One straight row on sm+: season picker left, search + pager right,
+              all vertically centered so the controls line up. Stacked on mobile. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <SeasonStepper
+              seasons={filteredSeasons}
+              selected={selectedSeason}
+              onSelect={handleSeasonChange}
+            />
+
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
             {episodes && episodes.length > 8 ? (
-            <div className="relative">
-              <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500" />
+            <div className="relative w-full sm:w-auto">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500 sm:left-2.5" />
               <input
                 value={episodeQuery}
                 onChange={(event) => setEpisodeQuery(event.target.value)}
                 placeholder="Episode name or #"
                 aria-label="Find episode in this season"
-                className="h-8 w-40 rounded-full border border-white/10 bg-white/[0.04] pl-8 pr-7 text-xs text-white placeholder:text-zinc-500 focus:border-red-500/40 focus:outline-none sm:w-44"
+                className="h-10 w-full rounded-full border border-white/10 bg-white/[0.04] pl-9 pr-9 text-sm text-white placeholder:text-zinc-500 focus:border-red-500/40 focus:outline-none sm:h-8 sm:w-44 sm:pl-8 sm:text-xs"
               />
               {episodeQuery ? (
                 <button
                   type="button"
                   onClick={() => setEpisodeQuery("")}
                   aria-label="Clear episode search"
-                  className="absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/10 hover:text-white"
+                  className="absolute right-2 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-full text-zinc-500 transition hover:bg-white/10 hover:text-white sm:right-1.5"
                 >
                   <XIcon className="size-3" />
                 </button>
@@ -365,43 +450,6 @@ export default function EpisodeList({
               />
             ) : null}
           </div>
-        </div>
-
-        <div
-          ref={railRef}
-          className="hide-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5"
-        >
-          {filteredSeasons.map((season) => {
-            const isSelected = season.season_number === selectedSeason;
-
-            return (
-              <button
-                key={season.id}
-                type="button"
-                data-active={isSelected}
-                onClick={() => handleSeasonChange(season.season_number)}
-                aria-pressed={isSelected}
-                className={cn(
-                  "group flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition",
-                  isSelected
-                    ? "border-white bg-white text-black shadow-lg shadow-white/10"
-                    : "border-white/10 bg-white/[0.04] text-zinc-300 hover:border-white/20 hover:bg-white/[0.08] hover:text-white",
-                )}
-              >
-                Season {season.season_number}
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-xs font-bold tabular-nums",
-                    isSelected
-                      ? "bg-black/10 text-black/70"
-                      : "bg-white/10 text-zinc-300 group-hover:text-white",
-                  )}
-                >
-                  {season.episode_count}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -516,7 +564,7 @@ export default function EpisodeList({
 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-70" />
 
-                  <span className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white/90 backdrop-blur-sm">
+                  <span className="absolute left-2 top-2 rounded-md bg-black/75 px-2 py-1 text-xs font-extrabold tabular-nums leading-none text-white backdrop-blur-sm">
                     E{episode.episode_number}
                   </span>
 

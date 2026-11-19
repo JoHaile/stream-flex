@@ -294,17 +294,16 @@ export default function CatalogControls({
           </div>
         </div>
 
+        {/* Below lg the "Filters" button opens a drawer holding every field, so the
+            inline pills would just duplicate them on a narrow screen. */}
         <div
           className={cn(
-            "hide-scrollbar flex gap-2 overflow-x-auto px-3 py-3 sm:flex-wrap sm:px-4 lg:grid",
+            "hidden gap-2 px-3 py-3 sm:px-4 lg:grid",
             pillGridColumns,
           )}
         >
           {fields.map((field) => (
-            <div
-              key={field.name}
-              className="min-w-[8.5rem] shrink-0 sm:min-w-0 lg:w-full"
-            >
+            <div key={field.name} className="w-full">
               <CatalogFilterPill field={field} onChange={updateQuery} />
             </div>
           ))}

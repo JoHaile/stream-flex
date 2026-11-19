@@ -1,0 +1,32 @@
+▲ Next.js 16.2.4 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+Turbopack build encountered 1 warnings:
+[next]/internal/font/google/inter_5901b7c6.module.css
+Error while requesting resource
+There was an issue establishing a connection while requesting https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/inter_5901b7c6.module.css
+    [next]/internal/font/google/inter_5901b7c6.js
+    ./app/layout.tsx
+
+
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+[next]/internal/font/google/inter_5901b7c6.module.css
+next/font: error:
+Failed to fetch `Inter` from Google Fonts.
+
+Import trace:
+  Server Component:
+    [next]/internal/font/google/inter_5901b7c6.module.css
+    [next]/internal/font/google/inter_5901b7c6.js
+    ./app/layout.tsx
+
+
+    at ignore-listed frames
+EXIT:1
