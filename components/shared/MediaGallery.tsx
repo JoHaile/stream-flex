@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, Maximize2, X } from "lucide-react";
 import type { TMDBImageAsset } from "@/utils/tmdb";
+import { cn } from "@/lib/utils";
 
 type GalleryAsset = TMDBImageAsset & { file_path: string };
 
@@ -25,12 +26,72 @@ type GalleryItem = {
   poster: boolean;
 };
 
+function GalleryTile({
+  item,
+  title,
+  index,
+  onOpen,
+}: {
+  item: GalleryItem;
+  title: string;
+  index: number;
+  onOpen: (index: number) => void;
+}) {
+  // Skeleton shimmer until the thumbnail arrives, then a soft fade-in.
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(index)}
+      aria-label={`View ${title} ${item.poster ? "poster" : "still"} ${index + 1}`}
+      className={`group relative h-48 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-900 ring-1 ring-zinc-800 transition hover:ring-zinc-500 md:h-64 ${
+        item.poster ? "aspect-[2/3]" : "aspect-video"
+      }`}
+    >
+      {!loaded ? (
+        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-800" />
+      ) : null}
+      <Image
+        src={tmdbImage(item.path, item.thumbSize)}
+        alt={`${title} ${item.poster ? "poster" : "still"}`}
+        fill
+        onLoad={() => setLoaded(true)}
+        className={cn(
+          "object-cover transition duration-500 group-hover:scale-105",
+          loaded ? "opacity-100" : "opacity-0",
+        )}
+        sizes={item.poster ? "220px" : "480px"}
+      />
+      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
+        <div
+          className={cn(
+            "flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/70 bg-black/40 opacity-0 transition group-hover:opacity-100",
+            !loaded && "hidden",
+          )}
+        >
+          <Maximize2 className="h-4 w-4 text-white" />
+        </div>
+      </div>
+      <span
+        className={cn(
+          "absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80 opacity-0 transition group-hover:opacity-100",
+          !loaded && "hidden",
+        )}
+      >
+        {item.poster ? "Poster" : "Still"}
+      </span>
+    </button>
+  );
+}
+
 export default function MediaGallery({
   title,
   backdrops,
   posters,
 }: MediaGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
   // Narrow to usable assets *before* building the shared index space, so the
@@ -105,30 +166,13 @@ export default function MediaGallery({
           className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar"
         >
           {items.map((item, i) => (
-            <button
+            <GalleryTile
               key={`${item.path}-${i}`}
-              onClick={() => setLightboxIndex(i)}
-              aria-label={`View ${title} ${item.poster ? "poster" : "still"} ${i + 1}`}
-              className={`group relative h-48 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-900 ring-1 ring-zinc-800 transition hover:ring-zinc-500 md:h-64 ${
-                item.poster ? "aspect-[2/3]" : "aspect-video"
-              }`}
-            >
-              <Image
-                src={tmdbImage(item.path, item.thumbSize)}
-                alt={`${title} ${item.poster ? "poster" : "still"}`}
-                fill
-                className="object-cover transition duration-300 group-hover:scale-105"
-                sizes={item.poster ? "220px" : "480px"}
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/70 bg-black/40 opacity-0 transition group-hover:opacity-100">
-                  <Maximize2 className="h-4 w-4 text-white" />
-                </div>
-              </div>
-              <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80 opacity-0 transition group-hover:opacity-100">
-                {item.poster ? "Poster" : "Still"}
-              </span>
-            </button>
+              item={item}
+              title={title}
+              index={i}
+              onOpen={setLightboxIndex}
+            />
           ))}
         </div>
       </section>
@@ -146,13 +190,23 @@ export default function MediaGallery({
                 the prev/next arrows stay put no matter the image's aspect. */}
             <div className="relative flex items-center justify-center md:w-[min(88vw,90rem)]">
               <div className="relative">
+                {loadedSrc !== current.path ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="h-56 w-[70vw] max-w-2xl animate-pulse rounded-xl bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-800 ring-1 ring-zinc-800" />
+                  </div>
+                ) : null}
                 <Image
+                  key={current.path}
                   src={tmdbImage(current.path, current.fullSize)}
                   alt={`${title} image ${lightboxIndex! + 1}`}
                   width={1280}
                   height={720}
                   priority
-                  className="h-auto w-auto max-h-[78vh] max-w-[88vw] rounded-xl bg-zinc-900 object-contain shadow-2xl ring-1 ring-zinc-700"
+                  onLoad={() => setLoadedSrc(current.path)}
+                  className={cn(
+                    "h-auto w-auto max-h-[78vh] max-w-[88vw] rounded-xl bg-zinc-900 object-contain shadow-2xl ring-1 ring-zinc-700 transition-opacity duration-500",
+                    loadedSrc === current.path ? "opacity-100" : "opacity-0",
+                  )}
                 />
                 <button
                   onClick={() => setLightboxIndex(null)}
