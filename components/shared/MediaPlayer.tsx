@@ -131,14 +131,17 @@ export default function MediaPlayer({
           className={cn(
             "relative bg-black",
             isFullscreen
-              ? "h-full w-full"
+              ? "flex h-full w-full flex-col"
               : "overflow-hidden rounded-xl shadow-2xl ring-1 ring-zinc-700",
           )}
         >
           <div
             className={cn(
               "relative",
-              isFullscreen ? "h-full w-full" : "aspect-video w-full",
+              // Fullscreen is a flex column: the video takes the space above
+              // the info bar instead of the info bar overlaying the video, so
+              // the player's native controls stay visible and clickable.
+              isFullscreen ? "min-h-0 w-full flex-1" : "aspect-video w-full",
             )}
           >
             <button
@@ -204,7 +207,7 @@ export default function MediaPlayer({
             <div
               className={cn(
                 isFullscreen
-                  ? "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4"
+                  ? "shrink-0 border-t border-zinc-800 bg-black px-4 py-3"
                   : "bg-gradient-to-t from-black/80 to-black px-4 pb-4 pt-4",
               )}
             >
