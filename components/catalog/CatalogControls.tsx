@@ -488,10 +488,18 @@ function MobileFilterDrawer({
           <DrawerClose asChild>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={onReset}
               disabled={!activeFilterCount || isPending}
-              className="h-10 rounded-full border-white/10 bg-white/[0.04] text-zinc-200 hover:bg-white/10 hover:text-white"
+              className={cn(
+                "h-10 rounded-full border transition",
+                // Solid white once something is actually filtered, muted (and
+                // disabled) while there is nothing to reset. The ghost variant
+                // has no dark: background, so these colours are the only ones.
+                activeFilterCount
+                  ? "border-transparent bg-white text-black hover:bg-zinc-200 hover:text-black"
+                  : "border-white/10 bg-white/[0.04] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-500",
+              )}
             >
               <RotateCcwIcon className="size-4" />
               Reset filters

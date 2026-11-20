@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 import NavBar from "@/components/shared/NavBar";
 import { Analytics } from "@vercel/analytics/react";
 import { SITE_URL } from "@/utils/site";
@@ -44,6 +45,7 @@ export default function RootLayout({
           <NavBar />
           <div className="flex-1">{children}</div>
         </TooltipProvider>
+        <Toaster position="bottom-center" />
         <Analytics />
       </body>
     </html>

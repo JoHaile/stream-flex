@@ -69,10 +69,15 @@ function SheetContent({
     container,
     ...popupProps
   } = props
-  const sideClasses =
-    side === "right"
-      ? "right-0 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right"
-      : "left-0 data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left"
+  const sideClasses = contained
+    ? // Contained means it lives inside the player frame, where a sideways
+      // slide would start clipped outside the frame and read as a jump. A plain
+      // fade (held with fill-mode-both from the very first paint) never moves or
+      // resizes the panel, so it cannot flash at a wrong width or position.
+      `${side === "right" ? "right-0" : "left-0"} data-open:animate-in data-open:fade-in-0 data-open:fill-mode-both data-closed:animate-out data-closed:fade-out-0`
+    : side === "right"
+      ? "right-0 data-open:animate-in data-open:slide-in-from-right data-open:fill-mode-both data-closed:animate-out data-closed:slide-out-to-right"
+      : "left-0 data-open:animate-in data-open:slide-in-from-left data-open:fill-mode-both data-closed:animate-out data-closed:slide-out-to-left"
 
   return (
     <SheetPortal keepMounted={keepMounted} container={container}>
@@ -87,7 +92,10 @@ function SheetContent({
         data-slot="sheet-content"
         className={cn(
           contained
-            ? "absolute inset-y-0 z-50 h-full w-full max-w-md border-l border-zinc-800 bg-zinc-950 shadow-2xl max-sm:fixed max-sm:max-w-none"
+            ? // A fixed width (instead of w-full + max-w) keeps the panel's size
+              // independent of the frame's box, so it never lays out wide first
+              // and then shrink to its final size.
+              "absolute inset-y-0 z-50 h-full w-[28rem] max-w-full border-l border-zinc-800 bg-zinc-950 shadow-2xl max-sm:fixed max-sm:w-full"
             : "fixed top-0 z-50 h-full w-full max-w-md border-l border-zinc-800 bg-zinc-950 shadow-2xl",
           sideClasses,
           className

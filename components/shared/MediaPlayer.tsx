@@ -12,6 +12,7 @@ import {
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import EpisodeList from "@/components/shared/EpisodeList";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type EpisodeData = {
   id: number;
@@ -31,6 +32,9 @@ type SeasonData = {
   season_number: number;
   episode_count: number;
 };
+
+/** Reused id so repeated lock taps replace the same toast instead of stacking. */
+const LOCK_TOAST_ID = "player-locked";
 
 type Props = {
   isOpen: boolean;
@@ -76,19 +80,11 @@ export default function MediaPlayer({
   // Popup mode only: a stray tap on the dimmed area used to close the player.
   // Locking parks that behaviour so an accidental touch cannot end playback.
   const [isLocked, setIsLocked] = useState(false);
-  // Bumped on every blocked tap so the hint re-shows (and re-arms its timer).
-  const [lockNotice, setLockNotice] = useState(0);
   // The player frame doubles as the portal target for the episode drawer in
   // popup mode, so the drawer is sized to the frame instead of the viewport.
   // Held as state (not a ref) because the portal resolves its container once on
   // mount, when an ancestor's ref has not been attached yet.
   const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!lockNotice) return;
-    const timer = setTimeout(() => setLockNotice(0), 2200);
-    return () => clearTimeout(timer);
-  }, [lockNotice]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -116,16 +112,39 @@ export default function MediaPlayer({
   const handleClose = () => {
     setIsFullscreen(false);
     setIsLocked(false);
-    setLockNotice(0);
+    toast.dismiss(LOCK_TOAST_ID);
     onClose();
   };
 
+  const toggleLock = () => {
+    setIsLocked((locked) => {
+      const next = !locked;
+      if (next) {
+        toast("Player locked", {
+          id: LOCK_TOAST_ID,
+          description:
+            "Taps outside the player no longer close it. Unlock to close it again.",
+          icon: <LockIcon className="size-4" />,
+          duration: 4000,
+        });
+      } else {
+        toast.dismiss(LOCK_TOAST_ID);
+      }
+      return next;
+    });
+  };
+
   // Backdrop taps close the popup — unless the player is locked, in which case
-  // they only flash a reminder of how to unlock it.
+  // a toast explains why nothing happened.
   const handleBackdropClick = () => {
     if (isFullscreen) return;
     if (isLocked) {
-      setLockNotice((count) => count + 1);
+      toast("Player locked", {
+        id: LOCK_TOAST_ID,
+        description: "Unlock the player first to close it.",
+        icon: <LockIcon className="size-4" />,
+        duration: 3000,
+      });
       return;
     }
     handleClose();
@@ -197,10 +216,7 @@ export default function MediaPlayer({
 
               {!isFullscreen ? (
                 <button
-                  onClick={() => {
-                    setIsLocked((value) => !value);
-                    setLockNotice(0);
-                  }}
+                  onClick={toggleLock}
                   aria-pressed={isLocked}
                   aria-label={
                     isLocked
@@ -287,15 +303,6 @@ export default function MediaPlayer({
           ) : null}
         </div>
       </div>
-
-      {isLocked && lockNotice > 0 ? (
-        <div
-          role="status"
-          className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-amber-400/30 bg-black/85 px-4 py-2 text-xs font-medium text-amber-200 shadow-xl backdrop-blur-sm"
-        >
-          Player locked — tap the Lock button to close it
-        </div>
-      ) : null}
     </div>
   );
 }
