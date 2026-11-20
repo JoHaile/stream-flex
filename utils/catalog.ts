@@ -288,6 +288,245 @@ export const getCatalogPage = cache(
   },
 );
 
+export const ANIMATION_GENRE_ID = 16;
+
+export type AnimeFormat = "all" | "movie" | "tv";
+export type AnimeOrigin = "all" | "anime" | "english";
+
+export interface AnimeQueryState {
+  format: AnimeFormat;
+  origin: AnimeOrigin;
+  page: number;
+  sort: CatalogSort;
+  year: string;
+}
+
+function isValidAnimeFormat(value: string | undefined): value is AnimeFormat {
+  return ["all", "movie", "tv"].includes(value ?? "");
+}
+
+function isValidAnimeOrigin(value: string | undefined): value is AnimeOrigin {
+  return ["all", "anime", "english"].includes(value ?? "");
+}
+
+export function parseAnimeQuery(
+  searchParams: SearchParamsRecord,
+): AnimeQueryState {
+  const requestedFormat = getFirstValue(searchParams.format);
+  const requestedOrigin = getFirstValue(searchParams.origin);
+  const requestedYear = getFirstValue(searchParams.year);
+  const requestedSort = getFirstValue(searchParams.sort);
+
+  return {
+    format: isValidAnimeFormat(requestedFormat) ? requestedFormat : "all",
+    origin: isValidAnimeOrigin(requestedOrigin) ? requestedOrigin : "all",
+    page: parsePositiveInt(getFirstValue(searchParams.page), 1),
+    sort: isValidSort(requestedSort) ? requestedSort : "default",
+    year: /^\d{4}$/.test(requestedYear ?? "") ? requestedYear ?? "" : "",
+  };
+}
+
+function sortCatalogItems(items: CatalogItem[], sort: CatalogSort) {
+  if (sort === "default") {
+    return [...items].sort(
+      (left, right) => (right.popularity ?? 0) - (left.popularity ?? 0),
+    );
+  }
+
+  if (sort === "rating") {
+    return [...items].sort(
+      (left, right) => (right.vote_average ?? 0) - (left.vote_average ?? 0),
+    );
+  }
+
+  if (sort === "newest") {
+    return [...items].sort((left, right) =>
+      getItemDate(right).localeCompare(getItemDate(left)),
+    );
+  }
+
+  if (sort === "oldest") {
+    return [...items].sort((left, right) =>
+      getItemDate(left).localeCompare(getItemDate(right)),
+    );
+  }
+
+  return [...items].sort((left, right) =>
+    getItemTitle(left).localeCompare(getItemTitle(right)),
+  );
+}
+
+/**
+ * Animated catalog (movies + TV series) built from the TMDB Animation genre.
+ * `origin = "anime"` narrows the feed to Japanese animation, which is what
+ * most people mean by anime; `origin = "english"` keeps English-language
+ * (mostly Western) animation; `origin = "all"` (the default) interleaves both
+ * with Japanese anime leading, so the page opens with anime instead of
+ * whatever global popularity puts on top.
+ */
+export const getAnimeCatalogPage = cache(
+  async ({
+    format = "all",
+    origin = "all",
+    page = 1,
+    sort = "default",
+    year,
+  }: {
+    format?: AnimeFormat;
+    origin?: AnimeOrigin;
+    page?: number;
+    sort?: CatalogSort;
+    year?: string;
+  }) => {
+    const mediaTypes: Array<Exclude<CatalogMediaType, "all">> =
+      format === "all" ? ["movie", "tv"] : [format];
+
+    const languages: Array<"ja" | "en"> =
+      origin === "anime" ? ["ja"] : origin === "english" ? ["en"] : ["ja", "en"];
+
+    const responses = await Promise.all(
+      mediaTypes.flatMap((mediaType) =>
+        languages.map(async (language) => {
+          try {
+            return {
+              data: await tmdbFetch<CatalogResponse>(
+                `/discover/${mediaType}`,
+                {
+                  include_adult: "false",
+                  include_video: "false",
+                  language: "en-US",
+                  page,
+                  sort_by: getDiscoverSort(mediaType, sort),
+                  "vote_count.gte":
+                    sort === "default"
+                      ? 50
+                      : sort === "rating"
+                        ? 200
+                        : undefined,
+                  with_genres: String(ANIMATION_GENRE_ID),
+                  with_original_language: language,
+                  ...(mediaType === "movie"
+                    ? { primary_release_year: year || undefined }
+                    : { first_air_date_year: year || undefined }),
+                },
+              ),
+              mediaType,
+              language,
+            };
+          } catch (error) {
+            console.error(
+              `Anime: failed to load ${mediaType}/${language}`,
+              error,
+            );
+            return null;
+          }
+        }),
+      ),
+    );
+
+    const loaded = responses.filter(
+      (
+        entry,
+      ): entry is {
+        data: CatalogResponse;
+        mediaType: Exclude<CatalogMediaType, "all">;
+        language: "ja" | "en";
+      } => entry !== null,
+    );
+
+    if (!loaded.length) {
+      return emptyCatalogResponse();
+    }
+
+    const dedupeAndSort = (entries: typeof loaded) => {
+      const seen = new Set<string>();
+      const items: CatalogItem[] = [];
+      for (const { data, mediaType } of entries) {
+        for (const item of data.results) {
+          const key = `${mediaType}-${item.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          items.push({ ...item, media_type: mediaType });
+        }
+      }
+      return sortCatalogItems(items, sort);
+    };
+
+    let results: CatalogItem[];
+    if (origin === "all" && sort === "default") {
+      // Anime-led mix: alternate the Japanese and Western streams starting
+      // with the Japanese one, so the list opens with anime but still mixes
+      // both origins throughout. Explicit sorts keep their global ordering.
+      const japanese = dedupeAndSort(loaded.filter((e) => e.language === "ja"));
+      const western = dedupeAndSort(
+        loaded.filter((e) => e.language === "en"),
+      );
+      const seen = new Set<string>();
+      results = [];
+      const longestStream = Math.max(japanese.length, western.length);
+      for (let index = 0; index < longestStream; index += 1) {
+        for (const item of [japanese[index], western[index]]) {
+          if (!item) continue;
+          const key = `${item.media_type}-${item.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          results.push(item);
+        }
+      }
+    } else {
+      results = dedupeAndSort(loaded);
+    }
+
+    return {
+      page,
+      results,
+      total_pages: Math.min(
+        500,
+        Math.max(...loaded.map((entry) => entry.data.total_pages ?? 1)),
+      ),
+      total_results: loaded.reduce(
+        (total, entry) => total + (entry.data.total_results ?? 0),
+        0,
+      ),
+    };
+  },
+);
+
+/**
+ * Home-page row that deliberately alternates Japanese anime with
+ * English-language animation so the line-up reads as a mix of both, not one
+ * block of anime followed by a block of Western cartoons.
+ */
+export const getAnimeMixRow = cache(async (limit = 20) => {
+  const [animeFeed, westernFeed] = await Promise.all([
+    getAnimeCatalogPage({ origin: "anime", page: 1, sort: "default" }),
+    getAnimeCatalogPage({ origin: "english", page: 1, sort: "default" }),
+  ]);
+
+  const seen = new Set<string>();
+  const mixed: CatalogItem[] = [];
+  const longestStream = Math.max(
+    animeFeed.results.length,
+    westernFeed.results.length,
+  );
+
+  for (let index = 0; index < longestStream; index += 1) {
+    for (const item of [animeFeed.results[index], westernFeed.results[index]]) {
+      if (!item || mixed.length >= limit) continue;
+
+      const key = `${item.media_type}-${item.id}`;
+      if (seen.has(key)) continue;
+
+      seen.add(key);
+      mixed.push(item);
+    }
+
+    if (mixed.length >= limit) break;
+  }
+
+  return mixed;
+});
+
 function getSectionPath(
   mediaType: CatalogMediaType,
   section: CatalogSection,
@@ -681,5 +920,75 @@ export const getMultiSearch = cache(
         (item) => item.media_type === "movie" || item.media_type === "tv",
       ),
     };
+  },
+);
+
+export type SearchScope = "movie" | "tv" | "anime";
+
+export function parseSearchTerm(value: SearchParamValue) {
+  const term = getFirstValue(value);
+  return typeof term === "string" ? term.trim() : "";
+}
+
+/**
+ * Search that stays inside one catalog. `scope = "anime"` runs the movie and TV
+ * searches and keeps only Animation results, so an Anime-tab search can never
+ * surface a live-action title.
+ */
+export const getScopedSearch = cache(
+  async ({
+    page = 1,
+    query,
+    scope,
+  }: {
+    page?: number;
+    query: string;
+    scope: SearchScope;
+  }) => {
+    const term = query.trim();
+    if (!term) return emptyCatalogResponse();
+
+    const params = {
+      include_adult: "false",
+      language: "en-US",
+      page,
+      query: term,
+    };
+
+    try {
+      if (scope === "anime") {
+        const [movies, series] = await Promise.all([
+          tmdbFetch<CatalogResponse>("/search/movie", params),
+          tmdbFetch<CatalogResponse>("/search/tv", params),
+        ]);
+
+        const merged: CatalogItem[] = [
+          ...movies.results.map((item) => ({
+            ...item,
+            media_type: "movie" as const,
+          })),
+          ...series.results.map((item) => ({
+            ...item,
+            media_type: "tv" as const,
+          })),
+        ].filter((item) => item.genre_ids?.includes(ANIMATION_GENRE_ID));
+
+        return {
+          page,
+          results: sortCatalogItems(merged, "default"),
+          total_pages: Math.min(
+            500,
+            Math.max(movies.total_pages ?? 1, series.total_pages ?? 1),
+          ),
+          total_results: merged.length,
+        };
+      }
+
+      const path = scope === "tv" ? "/search/tv" : "/search/movie";
+      return await tmdbFetch<CatalogResponse>(path, params);
+    } catch (error) {
+      console.error(`Search: failed to search ${scope} for "${term}"`, error);
+      return emptyCatalogResponse();
+    }
   },
 );

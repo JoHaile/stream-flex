@@ -3,25 +3,39 @@ import Link from "next/link";
 import MediaRow from "@/components/shared/MediaRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getFeedSection, getLatestSection, getMediaHref, getSectionTitle } from "@/utils/catalog";
+import { getFeedSection, getAnimeMixRow, getLatestSection, getMediaHref, getSectionTitle } from "@/utils/catalog";
 import { InfoIcon, PlayIcon, StarIcon } from "lucide-react";
 
 export default async function HomePage() {
-  const [trendingData, popularMoviesData, topRatedTVData, latestTVData, latestMovieData] =
+  const [trendingData, popularMoviesData, topRatedTVData, latestTVData, latestMovieData, animeMix] =
     await Promise.all([
       getFeedSection({ mediaType: "movie", section: "trending" }),
       getFeedSection({ mediaType: "movie", section: "popular" }),
       getFeedSection({ mediaType: "tv", section: "top-rated" }),
       getLatestSection({ mediaType: "tvshows", page: 1 }),
       getLatestSection({ mediaType: "movies", page: 1 }),
+      getAnimeMixRow(20),
     ]);
 
   const trendingAll = trendingData.results;
-  const popularMovies = popularMoviesData.results;
-  const topRatedTV = topRatedTVData.results;
-  const latestTV = latestTVData.results;
-  const latestMovies = latestMovieData.results;
-  const featured = trendingAll[0];
+  // One title per row: whatever already appeared higher up the page is dropped,
+  // so the anime row adds something rather than repeating Trending Now.
+  const seen = new Set<string>();
+  const uniqueItems = (items: typeof trendingAll) =>
+    items.filter((item) => {
+      const key = `${item.media_type ?? "movie"}-${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  const uniqueTrending = uniqueItems(trendingAll);
+  const popularMovies = uniqueItems(popularMoviesData.results);
+  const topRatedTV = uniqueItems(topRatedTVData.results);
+  const animeRow = uniqueItems(animeMix);
+  const latestMovies = uniqueItems(latestMovieData.results);
+  const latestTV = uniqueItems(latestTVData.results);
+  const featured = uniqueTrending[0];
 
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
@@ -110,7 +124,7 @@ export default async function HomePage() {
       <div className="page-container space-y-10 py-8">
         <MediaRow
           title="Trending Now"
-          items={trendingAll}
+          items={uniqueTrending}
           seeAllHref="/discover/movie/trending"
         />
 
@@ -126,6 +140,12 @@ export default async function HomePage() {
           items={topRatedTV}
           mediaType="tv"
           seeAllHref="/discover/tv/top-rated"
+        />
+
+        <MediaRow
+          title="Anime & Animation"
+          items={animeRow}
+          seeAllHref="/anime"
         />
 
         <MediaRow

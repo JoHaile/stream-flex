@@ -5,9 +5,11 @@ import {
   getAvailabilityOptions,
   getCatalogPage,
   getGenreOptions,
+  getScopedSearch,
   getSortOptions,
   getYearOptions,
   parseCatalogQuery,
+  parseSearchTerm,
   type SearchParamsRecord,
   getMediaHref,
   getMediaYear,
@@ -16,6 +18,7 @@ import {
 import TVSeriesControls from "./TVSeriesControls";
 import { StarIcon } from "lucide-react";
 import Pagination from "@/components/shared/Pagination";
+import CategorySearch from "@/components/catalog/CategorySearch";
 
 export const metadata: Metadata = {
   title: "TV Series | StreamFlix",
@@ -29,18 +32,25 @@ type Props = {
 export default async function TVSeriesPage({ searchParams }: Props) {
   const sp = await searchParams;
   const query = parseCatalogQuery(sp, "tv");
+  const searchTerm = parseSearchTerm(sp.search);
   const availability =
     typeof sp.availability === "string" ? sp.availability : "";
-  const data = await getCatalogPage({
-    genre: query.genre,
-    mediaType: "tv",
-    page: query.page,
-    sort: query.sort,
-    year: query.year,
-    availability: availability || undefined,
-  });
+  const data = searchTerm
+    ? await getScopedSearch({
+        page: query.page,
+        query: searchTerm,
+        scope: "tv",
+      })
+    : await getCatalogPage({
+        genre: query.genre,
+        mediaType: "tv",
+        page: query.page,
+        sort: query.sort,
+        year: query.year,
+        availability: availability || undefined,
+      });
 
-  const featured = data.results[0];
+  const featured = searchTerm ? undefined : data.results[0];
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
     : null;
@@ -126,7 +136,12 @@ export default async function TVSeriesPage({ searchParams }: Props) {
       ) : null}
 
       <main className="page-container pb-16">
-        <div className="relative z-10 mb-8">
+        <div className="relative z-10 space-y-3 pt-6">
+          <CategorySearch
+            placeholder="Search series only…"
+            scope="tv"
+            scopeLabel="Series"
+          />
           <TVSeriesControls
             defaultGenre={query.genre}
             defaultSort={query.sort}
@@ -141,8 +156,16 @@ export default async function TVSeriesPage({ searchParams }: Props) {
           />
         </div>
 
+        {searchTerm ? (
+          <p className="mt-5 text-xs text-zinc-500">
+            Results for{" "}
+            <span className="font-semibold text-zinc-200">“{searchTerm}”</span> in
+            series
+          </p>
+        ) : null}
+
         {data.results.length ? (
-          <>
+          <div className="mt-5">
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {data.results.map((item) => {
                 const href = getMediaHref(item, "tv");
@@ -208,15 +231,22 @@ export default async function TVSeriesPage({ searchParams }: Props) {
                 sort: query.sort !== "default" ? query.sort : undefined,
                 year: query.year || undefined,
                 availability: availability || undefined,
+                search: searchTerm || undefined,
               }}
               totalPages={data.total_pages}
             />
-          </>
+          </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-6 py-16 text-center">
-            <h2 className="text-xl font-semibold text-white">No titles match these filters</h2>
+          <div className="mt-6 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/50 px-6 py-16 text-center">
+            <h2 className="text-xl font-semibold text-white">
+              {searchTerm
+                ? `No series match “${searchTerm}”`
+                : "No titles match these filters"}
+            </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-400">
-              Try changing the sort order or clearing one of the active filters.
+              {searchTerm
+                ? "Try a shorter title, or clear the search to browse the full library."
+                : "Try changing the sort order or clearing one of the active filters."}
             </p>
           </div>
         )}

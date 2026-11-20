@@ -32,6 +32,7 @@ const STATIC_ROUTES: Array<{
   { path: "/", priority: 1, changeFrequency: "daily" },
   { path: "/movies", priority: 0.9, changeFrequency: "daily" },
   { path: "/tv-series", priority: 0.9, changeFrequency: "daily" },
+  { path: "/anime", priority: 0.9, changeFrequency: "daily" },
 ];
 
 // `all` only supports the trending and latest feeds; the other combinations

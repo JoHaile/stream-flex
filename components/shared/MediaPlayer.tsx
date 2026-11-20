@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ListIcon, XIcon } from "lucide-react";
+import {
+  ListIcon,
+  Maximize2,
+  Minimize2,
+  XIcon,
+} from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import EpisodeList from "@/components/shared/EpisodeList";
+import { cn } from "@/lib/utils";
 
 type EpisodeData = {
   id: number;
@@ -62,21 +68,37 @@ export default function MediaPlayer({
   onSelectEpisode,
 }: Props) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Opens as a centered popup (like the Gallery lightbox); the user can expand
+  // it to true fullscreen with the toggle button.
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // First Escape leaves fullscreen, the second one closes the player.
+      if (isFullscreen) {
+        setIsFullscreen(false);
+      } else {
+        onClose();
+      }
     };
     document.addEventListener("keydown", handleKey);
 
     return () => {
       document.removeEventListener("keydown", handleKey);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, isFullscreen, onClose]);
 
   if (!isOpen) return null;
+
+  // Every close path also drops the fullscreen state, so reopening always
+  // starts as the centered popup again.
+  const handleClose = () => {
+    setIsFullscreen(false);
+    onClose();
+  };
 
   const handleEpisodeSelect = (
     seasonNum: number,
@@ -89,32 +111,71 @@ export default function MediaPlayer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm landscape:bg-black landscape:backdrop-blur-none"
-      onClick={onClose}
+      className={cn(
+        "fixed inset-0 z-50",
+        isFullscreen
+          ? "bg-black"
+          : "flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm sm:p-6",
+      )}
+      onClick={isFullscreen ? undefined : handleClose}
     >
       <div
-        className="relative mx-4 w-full max-w-5xl landscape:mx-0 landscape:flex landscape:h-full landscape:max-w-full landscape:items-center landscape:justify-center"
+        className={cn(
+          // The tree shape stays identical in both modes (only classes change),
+          // so the iframe is never remounted and playback never restarts.
+          isFullscreen ? "h-full w-full" : "w-full max-w-5xl",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative w-full rounded-lg bg-black shadow-2xl landscape:h-full landscape:max-h-screen landscape:rounded-none">
-          <div className="relative aspect-video w-full pb-16 landscape:h-full landscape:pb-0">
+        <div
+          className={cn(
+            "relative bg-black",
+            isFullscreen
+              ? "flex h-full w-full flex-col"
+              : "overflow-hidden rounded-xl shadow-2xl ring-1 ring-zinc-700",
+          )}
+        >
+          <div
+            className={cn(
+              "relative",
+              // Fullscreen is a flex column: the video takes the space above
+              // the info bar instead of the info bar overlaying the video, so
+              // the player's native controls stay visible and clickable.
+              isFullscreen ? "min-h-0 w-full flex-1" : "aspect-video w-full",
+            )}
+          >
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-red-500"
             >
               <XIcon className="h-3.5 w-3.5" />
               Close
             </button>
 
-            {showEpisodes ? (
+            <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+              {showEpisodes ? (
+                <button
+                  onClick={() => setSheetOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
+                >
+                  <ListIcon className="h-3.5 w-3.5" />
+                  Seasons & Episodes
+                </button>
+              ) : null}
+
               <button
-                onClick={() => setSheetOpen(true)}
-                className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
+                onClick={() => setIsFullscreen((value) => !value)}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                className="flex items-center justify-center rounded-full bg-black/70 p-2 text-zinc-300 backdrop-blur-sm transition hover:bg-black/90 hover:text-white"
               >
-                <ListIcon className="h-3.5 w-3.5" />
-                Seasons & Episodes
+                {isFullscreen ? (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5" />
+                )}
               </button>
-            ) : null}
+            </div>
 
             {showEpisodes ? (
               <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -143,7 +204,13 @@ export default function MediaPlayer({
           </div>
 
           {info ? (
-            <div className="px-4 pb-4 pt-4 bg-gradient-to-t from-black/80 to-black landscape:absolute landscape:bottom-0 landscape:left-0 landscape:right-0">
+            <div
+              className={cn(
+                isFullscreen
+                  ? "shrink-0 border-t border-zinc-800 bg-black px-4 py-3"
+                  : "bg-gradient-to-t from-black/80 to-black px-4 pb-4 pt-4",
+              )}
+            >
               <div className="flex items-center justify-between">{info}</div>
             </div>
           ) : null}

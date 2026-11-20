@@ -5,6 +5,7 @@ import { getTVDetails, getTVSeasonDetails } from "@/utils/tmdb";
 
 type Props = {
   params: Promise<{ seriesID: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -39,8 +40,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function TVSeriesDetailPage({ params }: Props) {
+export default async function TVSeriesDetailPage({ params, searchParams }: Props) {
   const { seriesID } = await params;
+  const search = await searchParams;
   const seriesData = await getTVDetails(seriesID);
 
   if (!seriesData) {
@@ -49,14 +51,27 @@ export default async function TVSeriesDetailPage({ params }: Props) {
 
   const realSeasons =
     seriesData.seasons?.filter((season) => season.season_number > 0) || [];
-  const firstSeasonNumber =
+  const fallbackSeason =
     realSeasons.length > 0 ? realSeasons[0].season_number : 1;
-  const seasonData = await getTVSeasonDetails(seriesID, firstSeasonNumber);
+
+  // ?season=4&page=2 keeps a shared or refreshed link on the same season and
+  // episode page the viewer was reading, instead of dropping back to episode 1.
+  const requestedSeason = Number(search.season);
+  const validSeason =
+    Number.isInteger(requestedSeason) &&
+    realSeasons.some((season) => season.season_number === requestedSeason)
+      ? requestedSeason
+      : fallbackSeason;
+  const requestedPage = Math.floor(Number(search.page));
+  const initialPage = Number.isFinite(requestedPage) && requestedPage > 1 ? requestedPage : 1;
+
+  const seasonData = await getTVSeasonDetails(seriesID, validSeason);
 
   return (
     <TVSeriesDetailClient
       initialEpisodes={seasonData?.episodes || []}
-      initialSeason={firstSeasonNumber}
+      initialPage={initialPage}
+      initialSeason={validSeason}
       seriesData={seriesData}
       seriesId={seriesID}
     />

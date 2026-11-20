@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   StarIcon,
-  ExternalLink,
   TrendingUp,
   DollarSign,
   Landmark,
@@ -16,13 +15,17 @@ import {
 import type {
   MovieDetails,
   TMDBMovieCard,
-  TMDBReview,
-  TMDBWatchProviderResult,
   TMDBKeyword,
 } from "@/utils/getMovies";
 import { getMovieEmbedUrl } from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
 import MediaGallery from "@/components/shared/MediaGallery";
+import {
+  KeywordsSection,
+  ProductionSection,
+  ReviewsSection,
+  WhereToWatchSection,
+} from "@/components/shared/DetailSections";
 
 interface MovieDetailClientProps {
   movie: MovieDetails;
@@ -101,68 +104,9 @@ function getEmbedUrl(id: string) {
 }
 
 function getUsProviders(
-  data: Record<string, TMDBWatchProviderResult> | undefined,
+  data: Record<string, import("@/utils/getMovies").TMDBWatchProviderResult> | undefined,
 ) {
   return data?.US ?? null;
-}
-
-function ReviewCard({ review }: { review: TMDBReview }) {
-  const avatar = review.author_details?.avatar_path;
-  // TMDB returns an absolute Gravatar URL for authors without a TMDB account.
-  // Only serve avatars hosted by TMDB; anything else falls back to initials.
-  const avatarUrl = avatar?.startsWith("/")
-    ? `https://image.tmdb.org/t/p/w45${avatar}`
-    : null;
-  const rating = review.author_details?.rating ?? null;
-  const cleanContent = review.content.replace(/<\/?[^>]+(>|$)/g, "");
-
-  return (
-    <div className="flex-shrink-0 w-[340px] rounded-lg border border-zinc-800 bg-zinc-900/70 p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full bg-zinc-700">
-          {avatarUrl ? (
-            <Image
-              src={avatarUrl}
-              alt={review.author}
-              width={36}
-              height={36}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs font-bold text-zinc-400">
-              {review.author[0]?.toUpperCase()}
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">
-            {review.author_details?.name || review.author}
-          </p>
-          <p className="text-xs text-zinc-500">
-            {formatDate(review.created_at)}
-          </p>
-        </div>
-        {rating !== null ? (
-          <div className="flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-xs font-semibold">
-            <StarIcon className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-            {rating.toFixed(1)}
-          </div>
-        ) : null}
-      </div>
-      <p className="line-clamp-4 text-xs leading-relaxed text-zinc-400">
-        {cleanContent}
-      </p>
-      <a
-        href={review.url}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition"
-      >
-        Read full review
-        <ExternalLink className="h-3 w-3" />
-      </a>
-    </div>
-  );
 }
 
 export default function MovieDetailClient({
@@ -174,7 +118,6 @@ export default function MovieDetailClient({
   const [showPlayer, setShowPlayer] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const relatedRowRef = useRef<HTMLDivElement>(null);
-  const reviewsRowRef = useRef<HTMLDivElement>(null);
 
   const scrollRow = (ref: React.RefObject<HTMLDivElement | null>, direction: "left" | "right") => {
     if (!ref.current) return;
@@ -553,196 +496,21 @@ export default function MovieDetailClient({
           </section>
         ) : null}
 
-        {hasReviews ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">
-                Reviews <span className="text-sm font-normal text-zinc-500">({reviews.length})</span>
-              </h2>
-              {reviews.length > 2 ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => scrollRow(reviewsRowRef, "left")}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => scrollRow(reviewsRowRef, "right")}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <div
-              ref={reviewsRowRef}
-              className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar"
-            >
-              {reviews.map((review) => (
-                <ReviewCard key={review.id} review={review} />
-              ))}
-            </div>
-          </section>
-        ) : null}
+        {hasReviews ? <ReviewsSection reviews={reviews} /> : null}
 
         {hasProviders ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">Where to Watch</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {usProviders!.flatrate?.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2.5 text-xs font-semibold text-green-400 uppercase tracking-wider">Stream</p>
-                  <div className="flex flex-wrap gap-2">
-                    {usProviders!.flatrate.map((p) => (
-                      <div
-                        key={p.provider_id}
-                        className="flex items-center gap-2 rounded bg-zinc-800/80 px-2.5 py-1.5"
-                      >
-                        {p.logo_path ? (
-                          <Image
-                            src={tmdbImage(p.logo_path, "w45") ?? ""}
-                            alt={p.provider_name}
-                            width={20}
-                            height={20}
-                            className="rounded"
-                          />
-                        ) : null}
-                        <span className="text-xs font-medium text-white/80">{p.provider_name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {usProviders!.rent?.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2.5 text-xs font-semibold text-blue-400 uppercase tracking-wider">Rent</p>
-                  <div className="flex flex-wrap gap-2">
-                    {usProviders!.rent.map((p) => (
-                      <div
-                        key={p.provider_id}
-                        className="flex items-center gap-2 rounded bg-zinc-800/80 px-2.5 py-1.5"
-                      >
-                        {p.logo_path ? (
-                          <Image
-                            src={tmdbImage(p.logo_path, "w45") ?? ""}
-                            alt={p.provider_name}
-                            width={20}
-                            height={20}
-                            className="rounded"
-                          />
-                        ) : null}
-                        <span className="text-xs font-medium text-white/80">{p.provider_name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {usProviders!.buy?.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2.5 text-xs font-semibold text-yellow-400 uppercase tracking-wider">Buy</p>
-                  <div className="flex flex-wrap gap-2">
-                    {usProviders!.buy.map((p) => (
-                      <div
-                        key={p.provider_id}
-                        className="flex items-center gap-2 rounded bg-zinc-800/80 px-2.5 py-1.5"
-                      >
-                        {p.logo_path ? (
-                          <Image
-                            src={tmdbImage(p.logo_path, "w45") ?? ""}
-                            alt={p.provider_name}
-                            width={20}
-                            height={20}
-                            className="rounded"
-                          />
-                        ) : null}
-                        <span className="text-xs font-medium text-white/80">{p.provider_name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </section>
+          <WhereToWatchSection providers={usProviders!} />
         ) : null}
 
         {hasProduction ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">Production</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {movie.production_companies.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Studios</p>
-                  <div className="flex flex-col gap-1.5">
-                    {movie.production_companies.map((c) => (
-                      <div key={c.id} className="flex items-center gap-2">
-                        {c.logo_path ? (
-                          <div className="relative h-6 w-8 flex-shrink-0">
-                            <Image
-                              src={tmdbImage(c.logo_path, "w92") ?? ""}
-                              alt={c.name}
-                              fill
-                              sizes="32px"
-                              className="object-contain"
-                            />
-                          </div>
-                        ) : null}
-                        <span className="text-sm text-white/80">{c.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {movie.production_countries.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Countries</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {movie.production_countries.map((c) => (
-                      <span
-                        key={c.iso_3166_1}
-                        className="rounded bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
-                      >
-                        {c.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {movie.spoken_languages.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-4">
-                  <p className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Languages</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {movie.spoken_languages.map((lang) => (
-                      <span
-                        key={lang.iso_639_1}
-                        className="rounded bg-zinc-800/80 px-2 py-1 text-xs text-white/70"
-                      >
-                        {lang.english_name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </section>
+          <ProductionSection
+            companies={movie.production_companies}
+            countries={movie.production_countries}
+            languages={movie.spoken_languages}
+          />
         ) : null}
 
-        {hasKeywords ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">Keywords</h2>
-            <div className="flex flex-wrap gap-2">
-              {keywords.map((kw) => (
-                <span
-                  key={kw.id}
-                  className="rounded-full bg-zinc-800/80 px-3 py-1 text-xs font-medium text-zinc-300 ring-1 ring-zinc-700/50"
-                >
-                  {kw.name}
-                </span>
-              ))}
-            </div>
-          </section>
-        ) : null}
+        {hasKeywords ? <KeywordsSection keywords={keywords} /> : null}
 
       </main>
 
