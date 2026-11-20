@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMultiSearch, getScopedSearch } from "@/utils/catalog";
+import { searchMultiRaw, searchScopedRaw } from "@/utils/catalog";
 
 const SCOPES = ["movie", "tv", "anime"] as const;
 
@@ -18,16 +18,17 @@ export async function GET(request: Request) {
 
   try {
     if (isScope(scope)) {
-      const data = await getScopedSearch({
+      const data = await searchScopedRaw({
         query: query.trim(),
         scope,
       });
       return NextResponse.json({ results: data.results });
     }
 
-    const data = await getMultiSearch({ query: query.trim() });
+    const data = await searchMultiRaw({ query: query.trim() });
     return NextResponse.json({ results: data?.results ?? [] });
-  } catch {
-    return NextResponse.json({ results: [] }, { status: 500 });
+  } catch (err) {
+    console.error("search API error", err);
+    return NextResponse.json({ results: [], error: String(err) }, { status: 500 });
   }
 }
