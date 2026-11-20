@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition, type ComponentType } from "react";
+import { useState, useTransition, type ComponentType } from "react";
 import {
   ArrowUpDownIcon,
   CalendarIcon,
@@ -340,10 +340,13 @@ function CatalogFilterPill({
   field,
   isMobile = false,
   onChange,
+  portalContainer,
 }: {
   field: FilterField;
   isMobile?: boolean;
   onChange: (field: FilterField, value: string) => void;
+  /** Dialog the options must live in to stay clickable (see SelectContent). */
+  portalContainer?: HTMLElement | null;
 }) {
   const isActive = field.value !== field.clearValue;
   const Icon = field.icon;
@@ -382,6 +385,7 @@ function CatalogFilterPill({
       <SelectContent
         align="start"
         alignItemWithTrigger={false}
+        container={portalContainer}
         className="z-[60] rounded-xl border border-white/10 bg-zinc-950/95 text-zinc-100 shadow-2xl shadow-black/60 backdrop-blur-xl"
       >
         {field.options.map((option) => (
@@ -413,6 +417,11 @@ function MobileFilterDrawer({
   onUpdate: (field: FilterField, value: string) => void;
   summaryLabel: string;
 }) {
+  // The drawer is modal, so the page behind it ignores pointer events. Options
+  // portalled to <body> would render but swallow no clicks, so they are
+  // portalled into the drawer itself.
+  const [drawerEl, setDrawerEl] = useState<HTMLDivElement | null>(null);
+
   return (
     <Drawer>
       <DrawerTrigger asChild>
@@ -435,7 +444,10 @@ function MobileFilterDrawer({
           ) : null}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="border-white/10 bg-zinc-950 text-white">
+      <DrawerContent
+        ref={setDrawerEl}
+        className="border-white/10 bg-zinc-950 text-white"
+      >
         <DrawerHeader className="flex-row items-start justify-between gap-4 text-left">
           <div>
             <DrawerTitle className="text-white">Filters</DrawerTitle>
@@ -462,7 +474,12 @@ function MobileFilterDrawer({
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
                 {field.label}
               </label>
-              <CatalogFilterPill field={field} isMobile onChange={onUpdate} />
+              <CatalogFilterPill
+                field={field}
+                isMobile
+                onChange={onUpdate}
+                portalContainer={drawerEl}
+              />
             </div>
           ))}
         </div>
@@ -471,10 +488,18 @@ function MobileFilterDrawer({
           <DrawerClose asChild>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={onReset}
               disabled={!activeFilterCount || isPending}
-              className="h-10 rounded-full border-white/10 bg-white/[0.04] text-zinc-200 hover:bg-white/10 hover:text-white"
+              className={cn(
+                "h-10 rounded-full border transition",
+                // Solid white once something is actually filtered, muted (and
+                // disabled) while there is nothing to reset. The ghost variant
+                // has no dark: background, so these colours are the only ones.
+                activeFilterCount
+                  ? "border-transparent bg-white text-black hover:bg-zinc-200 hover:text-black"
+                  : "border-white/10 bg-white/[0.04] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-500",
+              )}
             >
               <RotateCcwIcon className="size-4" />
               Reset filters

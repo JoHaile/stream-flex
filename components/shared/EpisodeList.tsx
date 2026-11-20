@@ -187,7 +187,7 @@ function SeasonStepper({
       >
         <SelectTrigger
           aria-label="Choose season"
-          className="h-10 min-w-0 flex-1 justify-between rounded-full border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] data-[size=default]:h-10 sm:h-9 sm:w-[150px] sm:flex-none sm:data-[size=default]:h-9"
+          className="h-10 min-w-0 flex-1 justify-between rounded-full border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] data-[size=default]:h-10 sm:h-9 sm:data-[size=default]:h-9"
         >
           <SelectValue>
             {(value) => `Season ${typeof value === "number" ? value : selected}`}
@@ -220,7 +220,7 @@ function SeasonStepper({
         <ChevronRight className="size-4" />
       </button>
 
-      <span className="hidden shrink-0 text-xs font-semibold tabular-nums text-zinc-500 lg:block">
+      <span className="shrink-0 text-xs font-semibold tabular-nums text-zinc-500">
         {index + 1} / {seasons.length}
       </span>
     </div>
@@ -408,25 +408,25 @@ export default function EpisodeList({
             ) : null}
           </div>
 
-          {/* One straight row on sm+: season picker left, search + pager right,
-              all vertically centered so the controls line up. Stacked on mobile. */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Stacked at every width: the picker panel is narrow (a half-screen
+              player is ~28rem), so season and search side by side overflow. */}
+          <div className="flex flex-col gap-3">
             <SeasonStepper
               seasons={filteredSeasons}
               selected={selectedSeason}
               onSelect={handleSeasonChange}
             />
 
-            <div className="flex w-full items-center gap-2 sm:w-auto sm:justify-end">
+            <div className="flex w-full items-center gap-2">
             {episodes && episodes.length > 8 ? (
-            <div className="relative w-full sm:w-auto">
+            <div className="relative min-w-0 flex-1">
               <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500 sm:left-2.5" />
               <input
                 value={episodeQuery}
                 onChange={(event) => setEpisodeQuery(event.target.value)}
                 placeholder="Episode name or #"
                 aria-label="Find episode in this season"
-                className="h-10 w-full rounded-full border border-white/10 bg-white/[0.04] pl-9 pr-9 text-sm text-white placeholder:text-zinc-500 focus:border-red-500/40 focus:outline-none sm:h-8 sm:w-44 sm:pl-8 sm:text-xs"
+                className="h-10 w-full rounded-full border border-white/10 bg-white/[0.04] pl-9 pr-9 text-sm text-white placeholder:text-zinc-500 focus:border-red-500/40 focus:outline-none sm:h-9 sm:pl-8 sm:text-xs"
               />
               {episodeQuery ? (
                 <button

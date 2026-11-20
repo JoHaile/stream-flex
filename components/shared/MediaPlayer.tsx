@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   ListIcon,
+  LockIcon,
+  LockOpenIcon,
   Maximize2,
   Minimize2,
   XIcon,
@@ -10,6 +12,7 @@ import {
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import EpisodeList from "@/components/shared/EpisodeList";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type EpisodeData = {
   id: number;
@@ -71,6 +74,14 @@ export default function MediaPlayer({
   // Opens as a centered popup (like the Gallery lightbox); the user can expand
   // it to true fullscreen with the toggle button.
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Popup mode only: a stray tap on the dimmed area used to close the player.
+  // Locking parks that behaviour so an accidental touch cannot end playback.
+  const [isLocked, setIsLocked] = useState(false);
+  // The player frame doubles as the portal target for the episode drawer in
+  // popup mode, so the drawer is sized to the frame instead of the viewport.
+  // Held as state (not a ref) because the portal resolves its container once on
+  // mount, when an ancestor's ref has not been attached yet.
+  const [frameEl, setFrameEl] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -93,11 +104,51 @@ export default function MediaPlayer({
 
   if (!isOpen) return null;
 
-  // Every close path also drops the fullscreen state, so reopening always
-  // starts as the centered popup again.
+  // Every close path also drops the fullscreen and lock state, so reopening
+  // always starts as the centered, unlocked popup again.
   const handleClose = () => {
     setIsFullscreen(false);
+    setIsLocked(false);
+    toast.dismiss();
     onClose();
+  };
+
+  // Yellow = warning (locked), green = success (unlocked). No shared id, so the
+  // toasts stack on top of each other the way sonner does by default.
+  const toggleLock = () => {
+    // The toast fires from the handler, never from inside the state updater:
+    // React double-invokes updaters (StrictMode, re-renders), which showed the
+    // same toast twice per click.
+    const next = !isLocked;
+    setIsLocked(next);
+
+    if (next) {
+      toast.warning("Player locked", {
+        description:
+          "Taps outside the player no longer close it. Unlock to close it again.",
+        icon: <LockIcon className="size-4" />,
+      });
+    } else {
+      toast.success("Player unlocked", {
+        description: "Taps outside the player close it again.",
+        icon: <LockOpenIcon className="size-4" />,
+      });
+    }
+  };
+
+  // Backdrop taps close the popup — unless the player is locked, in which case
+  // a toast explains why nothing happened.
+  const handleBackdropClick = () => {
+    if (isFullscreen) return;
+    if (isLocked) {
+      toast.warning("Player is locked", {
+        description: "Unlock the player first to close it.",
+        icon: <LockIcon className="size-4" />,
+        duration: 2500,
+      });
+      return;
+    }
+    handleClose();
   };
 
   const handleEpisodeSelect = (
@@ -117,7 +168,7 @@ export default function MediaPlayer({
           ? "bg-black"
           : "flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm sm:p-6",
       )}
-      onClick={isFullscreen ? undefined : handleClose}
+      onClick={isFullscreen ? undefined : handleBackdropClick}
     >
       <div
         className={cn(
@@ -128,6 +179,7 @@ export default function MediaPlayer({
         onClick={(e) => e.stopPropagation()}
       >
         <div
+          ref={setFrameEl}
           className={cn(
             "relative bg-black",
             isFullscreen
@@ -163,6 +215,36 @@ export default function MediaPlayer({
                 </button>
               ) : null}
 
+              {!isFullscreen ? (
+                <button
+                  onClick={toggleLock}
+                  aria-pressed={isLocked}
+                  aria-label={
+                    isLocked
+                      ? "Unlock player"
+                      : "Lock player so taps outside the frame cannot close it"
+                  }
+                  title={
+                    isLocked
+                      ? "Player locked — taps outside no longer close it"
+                      : "Lock player (taps outside will not close it)"
+                  }
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition",
+                    isLocked
+                      ? "bg-amber-400 text-black hover:bg-amber-300"
+                      : "bg-black/70 text-zinc-300 hover:bg-black/90 hover:text-white",
+                  )}
+                >
+                  {isLocked ? (
+                    <LockIcon className="h-3.5 w-3.5" />
+                  ) : (
+                    <LockOpenIcon className="h-3.5 w-3.5" />
+                  )}
+                  {isLocked ? "Locked" : "Lock"}
+                </button>
+              ) : null}
+
               <button
                 onClick={() => setIsFullscreen((value) => !value)}
                 aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
@@ -179,7 +261,13 @@ export default function MediaPlayer({
 
             {showEpisodes ? (
               <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-                <SheetContent keepMounted>
+                <SheetContent
+                  keepMounted
+                  // Fullscreen already spans the viewport, so the drawer keeps
+                  // its edge-to-edge shape; the popup docks it to the frame.
+                  contained={!isFullscreen}
+                  container={isFullscreen ? undefined : (frameEl ?? undefined)}
+                >
                   {seriesId &&
                   seasons &&
                   selectedSeason !== undefined &&

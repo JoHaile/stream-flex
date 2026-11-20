@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   getAnimeCatalogPage,
+  getFeedSection,
   getScopedSearch,
   getMediaHref,
   getMediaTitle,
@@ -62,12 +63,30 @@ export default async function AnimePage({ searchParams }: Props) {
   // The cover leads with a Japanese anime title (AOT, Demon Slayer, etc.)
   // unless the user explicitly filtered to Western animation or is searching.
   const preferJapanese = !searchTerm && query.origin !== "english";
+  // Cover art comes from the trending feeds (like the home page) so the hero is
+  // a genuinely trending title, filtered down to animation.
+  const trending = searchTerm
+    ? []
+    : (
+        await Promise.all([
+          getFeedSection({ mediaType: "movie", section: "trending" }),
+          getFeedSection({ mediaType: "tv", section: "trending" }),
+        ])
+      )
+        .flatMap((feed) => feed.results)
+        .filter((item) => (item.genre_ids ?? []).includes(16));
+
+  const trendingPick = preferJapanese
+    ? (trending.find((item) => item.original_language === "ja") ?? trending[0])
+    : trending[0];
+
   const featured = searchTerm
     ? undefined
-    : preferJapanese
-      ? (data.results.find((item) => item.original_language === "ja") ??
-        data.results[0])
-      : data.results[0];
+    : (trendingPick ??
+      (preferJapanese
+        ? (data.results.find((item) => item.original_language === "ja") ??
+          data.results[0])
+        : data.results[0]));
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
     : null;

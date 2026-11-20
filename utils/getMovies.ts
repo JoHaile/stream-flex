@@ -38,6 +38,8 @@ type TMDBCrewMember = {
   name: string;
   department: string;
   job: string;
+  /** TMDB sends this in credits.crew; used for the About crew portraits. */
+  profile_path: string | null;
 };
 
 export type TMDBProvider = {

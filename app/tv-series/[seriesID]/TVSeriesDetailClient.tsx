@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import EpisodeList from "@/components/shared/EpisodeList";
 import MediaGallery from "@/components/shared/MediaGallery";
+import AboutSection from "@/components/shared/AboutSection";
 import type { TVEpisode, TVSeriesDetails, TMDBWatchProviderResult, TMDBKeyword } from "@/utils/tmdb";
 import { getTVEpisodeEmbedUrl } from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
@@ -14,7 +15,16 @@ import {
   ReviewsSection,
   WhereToWatchSection,
 } from "@/components/shared/DetailSections";
-import { ChevronLeft, ChevronRight, StarIcon, TrendingUp, Calendar } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  StarIcon,
+  TrendingUp,
+  Calendar,
+  ClockIcon,
+  ClapperboardIcon,
+  Tv,
+} from "lucide-react";
 
 interface TVSeriesDetailClientProps {
   initialEpisodes: TVEpisode[];
@@ -427,74 +437,97 @@ export default function TVSeriesDetailClient({
         </section>
 
         {seriesData.overview ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">About {seriesData.name}</h2>
-            <p className="max-w-3xl text-sm leading-relaxed text-zinc-400">
-              {seriesData.overview}
-            </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                <TrendingUp className="mb-1 h-4 w-4 text-red-400" />
-                <p className="text-[11px] font-medium text-zinc-500">Popularity</p>
-                <p className="text-sm font-semibold text-white">{formatNumber(seriesData.popularity)}</p>
-              </div>
-              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                <Calendar className="mb-1 h-4 w-4 text-blue-400" />
-                <p className="text-[11px] font-medium text-zinc-500">First Aired</p>
-                <p className="text-sm font-semibold text-white">{formatDate(seriesData.first_air_date)}</p>
-              </div>
-              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                <Calendar className="mb-1 h-4 w-4 text-purple-400" />
-                <p className="text-[11px] font-medium text-zinc-500">Status</p>
-                <p className="text-sm font-semibold text-white">{seriesData.status}</p>
-              </div>
-              {seriesData.genres.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3 col-span-2 sm:col-span-1 lg:col-span-2">
-                  <p className="text-[11px] font-medium text-zinc-500 mb-1">Genres</p>
-                  <p className="text-xs leading-relaxed text-white/80">
-                    {seriesData.genres.map((g) => g.name).join(", ")}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-zinc-400">
-              {creators.length ? (
-                <div>
-                  <span className="font-semibold text-zinc-300">Created by: </span>
-                  {creators.map((c) => c.name).join(", ")}
-                </div>
-              ) : null}
-              {seriesData.genres.length ? (
-                <div>
-                  <span className="font-semibold text-zinc-300">Genres: </span>
-                  {seriesData.genres.map((g) => g.name).join(", ")}
-                </div>
-              ) : null}
-              {seriesData.networks.length ? (
-                <div>
-                  <span className="font-semibold text-zinc-300">Network: </span>
-                  {seriesData.networks.map((n) => n.name).join(", ")}
-                </div>
-              ) : null}
-              {imdbId ? (
-                <div>
-                  <a
-                    href={`https://www.imdb.com/title/${imdbId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded bg-yellow-500/15 px-3 py-1 text-xs font-semibold text-yellow-400 hover:bg-yellow-500/25 transition ring-1 ring-yellow-500/30"
-                  >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M16.5 7.5v9H18v-9h-1.5zM12 7.5v9h1.5v-9H12zm-3 9V9.75L6 12.75V9H4.5v9H6l3-3.75V16.5H9v-6.75L12 12.75V9H9v7.5zM3 6v12h18V6H3z" />
-                    </svg>
-                    IMDb
-                  </a>
-                </div>
-              ) : null}
-            </div>
-          </section>
+          <AboutSection
+            title={seriesData.name}
+            overview={seriesData.overview}
+            tagline={seriesData.tagline}
+            imdbId={imdbId}
+            stats={[
+              {
+                label: "Popularity",
+                value: formatNumber(seriesData.popularity),
+                icon: TrendingUp,
+                iconClass: "text-red-400",
+              },
+              {
+                label: "First aired",
+                value: formatDate(seriesData.first_air_date),
+                icon: Calendar,
+                iconClass: "text-sky-400",
+              },
+              {
+                label: "Status",
+                value: seriesData.status || "Unknown",
+                icon: ClockIcon,
+                iconClass: "text-emerald-400",
+              },
+              ...(seriesData.number_of_seasons
+                ? [
+                    {
+                      label: "Seasons",
+                      value: `${seriesData.number_of_seasons} · ${
+                        seriesData.number_of_episodes ?? 0
+                      } episodes`,
+                      icon: Tv,
+                      iconClass: "text-amber-400",
+                    },
+                  ]
+                : []),
+              ...(seriesData.genres.length
+                ? [
+                    {
+                      label: "Genres",
+                      value: seriesData.genres
+                        .map((genre) => genre.name)
+                        .join(" · "),
+                      icon: ClapperboardIcon,
+                      iconClass: "text-violet-400",
+                    },
+                  ]
+                : []),
+              ...(seriesData.networks.length
+                ? [
+                    {
+                      label: "Network",
+                      value: seriesData.networks
+                        .map((network) => network.name)
+                        .join(" · "),
+                      icon: Tv,
+                      iconClass: "text-sky-400",
+                    },
+                  ]
+                : []),
+            ]}
+            crewGroups={[
+              { label: "Created by", people: creators },
+              {
+                label: "Director",
+                people: (seriesData.credits?.crew ?? [])
+                  .filter((member) => member.job === "Director")
+                  .slice(0, 3)
+                  .map((member) => ({
+                    id: member.id,
+                    name: member.name,
+                    profile_path: member.profile_path,
+                  })),
+              },
+              {
+                label: "Writer",
+                people: (seriesData.credits?.crew ?? [])
+                  .filter((member) =>
+                    ["Screenplay", "Writer", "Story", "Teleplay"].includes(
+                      member.job ?? "",
+                    ),
+                  )
+                  .slice(0, 3)
+                  .map((member) => ({
+                    id: member.id,
+                    name: member.name,
+                    profile_path: member.profile_path,
+                  })),
+              },
+            ]}
+          />
         ) : null}
 
         <MediaGallery

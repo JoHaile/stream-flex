@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRef } from "react";
 import {
+  Building2,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -10,6 +11,7 @@ import {
   Languages,
   Quote,
   StarIcon,
+  Tv,
 } from "lucide-react";
 import type {
   TMDBKeyword,
@@ -266,54 +268,87 @@ export function WhereToWatchSection({
 
 /* --------------------------------- Production -------------------------------- */
 
-function LogoTile({ company }: { company: CompanyLike }) {
-  const logoUrl = tmdbImage(company.logo_path, "w92");
+/** ISO-3166 alpha-2 → flag emoji (regional indicator letters). */
+function flagFor(code: string | null | undefined) {
+  if (!code || code.length !== 2) return null;
+  const base = 0x1f1e6;
+  const letters = code
+    .toUpperCase()
+    .split("")
+    .map((char) => char.charCodeAt(0) - 65);
+  if (letters.some((n) => n < 0 || n > 25)) return null;
+  return String.fromCodePoint(...letters.map((n) => base + n));
+}
+
+/** Production lists repeat themselves (same studio credited twice), so dedupe. */
+function uniqueBy<T>(items: T[], key: (item: T) => string | number) {
+  const seen = new Set<string | number>();
+  return items.filter((item) => {
+    const id = key(item);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function Panel({
+  label,
+  icon: Icon,
+  count,
+  children,
+}: {
+  label: string;
+  icon: typeof Building2;
+  count: number;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex h-11 items-center gap-2.5 rounded-lg bg-zinc-900/60 px-3 ring-1 ring-zinc-800 transition hover:ring-zinc-600">
-      {logoUrl ? (
-        <div className="relative h-7 w-10 flex-shrink-0">
-          <Image
-            src={logoUrl}
-            alt={company.name}
-            fill
-            sizes="40px"
-            className="object-contain"
-          />
-        </div>
-      ) : null}
-      <span className="text-sm text-white/80">{company.name}</span>
+    <div className="flex min-w-0 flex-col rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.05] via-white/[0.02] to-transparent p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="flex size-7 items-center justify-center rounded-lg bg-white/[0.06] text-zinc-300 ring-1 ring-white/10">
+          <Icon className="size-3.5" />
+        </span>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-400">
+          {label}
+        </p>
+        {count > 1 ? (
+          <span className="ml-auto rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold tabular-nums text-zinc-400">
+            {count}
+          </span>
+        ) : null}
+      </div>
+      {children}
     </div>
   );
 }
 
-function ChipGroup({
-  label,
-  icon,
-  items,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  items: string[];
-}) {
-  if (!items.length) return null;
+function CompanyRow({ company }: { company: CompanyLike }) {
+  const logoUrl = tmdbImage(company.logo_path, "w92");
+
   return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        {label}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <span
-            key={item}
-            className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900/60 px-3 py-1.5 text-xs font-medium text-zinc-300 ring-1 ring-zinc-800"
-          >
-            {icon}
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
+    <li className="flex items-center gap-2.5">
+      <span className="flex h-9 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/[0.08] ring-1 ring-white/10">
+        {logoUrl ? (
+          <Image
+            src={tmdbImage(company.logo_path, "w185") ?? logoUrl}
+            alt=""
+            width={185}
+            height={185}
+            className="h-full w-full object-contain p-1.5"
+          />
+        ) : (
+          <Building2 className="size-3.5 text-zinc-500" />
+        )}
+      </span>
+      <span className="line-clamp-2 min-w-0 text-[13px] font-medium leading-tight text-white/85">
+        {company.name}
+      </span>
+    </li>
   );
+}
+
+function TagList({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-wrap gap-1.5">{children}</div>;
 }
 
 export function ProductionSection({
@@ -327,57 +362,82 @@ export function ProductionSection({
   countries: CountryLike[];
   languages: LanguageLike[];
 }) {
-  if (
-    !companies.length &&
-    !networks.length &&
-    !countries.length &&
-    !languages.length
-  ) {
+  const studios = uniqueBy(companies, (company) => company.id);
+  const channels = uniqueBy(networks, (network) => network.id);
+  const places = uniqueBy(countries, (country) => country.iso_3166_1);
+  const spoken = uniqueBy(languages, (language) => language.iso_639_1);
+
+  if (!studios.length && !channels.length && !places.length && !spoken.length) {
     return null;
   }
 
   return (
     <section className="mb-10 border-t border-zinc-800 pt-8">
       <SectionHeader title="Production" />
-      <div className="space-y-6">
-        {companies.length ? (
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-              Studios
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {companies.map((company) => (
-                <LogoTile key={company.id} company={company} />
+      {/* One column on phones, two from sm, so long studio names never squeeze. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {studios.length ? (
+          <Panel label="Studios" icon={Building2} count={studios.length}>
+            <ul className="space-y-2.5">
+              {studios.map((company) => (
+                <CompanyRow key={company.id} company={company} />
               ))}
-            </div>
-          </div>
+            </ul>
+          </Panel>
         ) : null}
 
-        {networks.length ? (
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-              Networks
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {networks.map((network) => (
-                <LogoTile key={network.id} company={network} />
+        {channels.length ? (
+          <Panel label="Networks" icon={Tv} count={channels.length}>
+            <ul className="space-y-2.5">
+              {channels.map((network) => (
+                <CompanyRow key={network.id} company={network} />
               ))}
-            </div>
-          </div>
+            </ul>
+          </Panel>
         ) : null}
 
-        <div className="flex flex-wrap gap-x-10 gap-y-4">
-          <ChipGroup
-            label="Countries"
-            icon={<Globe2 className="h-3.5 w-3.5 text-zinc-500" />}
-            items={countries.map((country) => country.name)}
-          />
-          <ChipGroup
-            label="Languages"
-            icon={<Languages className="h-3.5 w-3.5 text-zinc-500" />}
-            items={languages.map((language) => language.english_name)}
-          />
-        </div>
+        {places.length ? (
+          <Panel label="Countries" icon={Globe2} count={places.length}>
+            <TagList>
+              {places.map((country) => {
+                const flag = flagFor(country.iso_3166_1);
+                return (
+                  <span
+                    key={country.iso_3166_1}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-zinc-900/70 px-2.5 py-1.5 text-xs font-medium text-zinc-300 ring-1 ring-white/10"
+                  >
+                    {flag ? (
+                      <span aria-hidden className="text-sm leading-none">
+                        {flag}
+                      </span>
+                    ) : (
+                      <Globe2 className="size-3 text-zinc-500" />
+                    )}
+                    <span className="truncate">{country.name}</span>
+                  </span>
+                );
+              })}
+            </TagList>
+          </Panel>
+        ) : null}
+
+        {spoken.length ? (
+          <Panel label="Languages" icon={Languages} count={spoken.length}>
+            <TagList>
+              {spoken.map((language) => (
+                <span
+                  key={language.iso_639_1}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-zinc-900/70 px-2 py-1.5 text-xs font-medium text-zinc-300 ring-1 ring-white/10"
+                >
+                  <span className="rounded bg-white/[0.08] px-1 py-0.5 text-[9px] font-bold uppercase text-zinc-400">
+                    {language.iso_639_1}
+                  </span>
+                  <span className="truncate">{language.english_name}</span>
+                </span>
+              ))}
+            </TagList>
+          </Panel>
+        ) : null}
       </div>
     </section>
   );

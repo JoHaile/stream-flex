@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 import NavBar from "@/components/shared/NavBar";
 import { Analytics } from "@vercel/analytics/react";
 import { SITE_URL } from "@/utils/site";
@@ -37,13 +38,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", "font-sans", inter.variable, "dark")}
+      className={cn(
+        "h-full",
+        "antialiased",
+        "font-sans",
+        inter.variable,
+        "dark",
+      )}
     >
       <body className="flex min-h-full flex-col">
         <TooltipProvider>
           <NavBar />
           <div className="flex-1">{children}</div>
         </TooltipProvider>
+        <Toaster position="bottom-center" richColors visibleToasts={4} />
         <Analytics />
       </body>
     </html>

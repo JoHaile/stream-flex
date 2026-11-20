@@ -64,14 +64,23 @@ function SelectContent({
   align = "center",
   alignOffset = 0,
   alignItemWithTrigger = true,
+  container,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
-  >) {
+  > & {
+    /**
+     * Where the popup is portalled. Inside a modal dialog (drawer, sheet) the
+     * page behind it ignores pointer events, so a popup portalled to <body>
+     * would paint but never receive a click. Pass the dialog's own element
+     * there to keep the options interactive.
+     */
+    container?: HTMLElement | null
+  }) {
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container ?? undefined}>
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}
