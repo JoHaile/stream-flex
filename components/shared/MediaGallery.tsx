@@ -182,6 +182,19 @@ export default function MediaGallery({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm"
           onClick={() => setLightboxIndex(null)}
         >
+          {/* Close sits on the overlay, not on the image, so it never shifts
+              while the image is still loading (or changes aspect). */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxIndex(null);
+            }}
+            aria-label="Close image"
+            className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-black/80"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
           <div
             className="relative flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
@@ -208,13 +221,6 @@ export default function MediaGallery({
                     loadedSrc === current.path ? "opacity-100" : "opacity-0",
                   )}
                 />
-                <button
-                  onClick={() => setLightboxIndex(null)}
-                  aria-label="Close image"
-                  className="absolute -top-3 -right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-zinc-300 ring-1 ring-zinc-600 transition hover:bg-zinc-700 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
               </div>
 
               {lightboxIndex! > 0 ? (

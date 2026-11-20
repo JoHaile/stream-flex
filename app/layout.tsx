@@ -38,14 +38,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", "font-sans", inter.variable, "dark")}
+      className={cn(
+        "h-full",
+        "antialiased",
+        "font-sans",
+        inter.variable,
+        "dark",
+      )}
     >
       <body className="flex min-h-full flex-col">
         <TooltipProvider>
           <NavBar />
           <div className="flex-1">{children}</div>
         </TooltipProvider>
-        <Toaster position="bottom-center" />
+        <Toaster position="bottom-center" richColors visibleToasts={3} />
         <Analytics />
       </body>
     </html>
