@@ -54,20 +54,41 @@ function SheetContent({
   side?: "left" | "right"
   /** Keep the popup mounted while closed so its internal state survives. */
   keepMounted?: boolean
+  /**
+   * Size and clip the panel to the nearest positioned ancestor (the player
+   * window) instead of the whole viewport, so the drawer matches a half-screen
+   * player instead of covering the page behind it.
+   */
+  contained?: boolean
+  /** Portal target; pair it with `contained` (e.g. the player frame element). */
+  container?: HTMLElement | null
 }) {
-  const { keepMounted = false, ...popupProps } = props
+  const {
+    keepMounted = false,
+    contained = false,
+    container,
+    ...popupProps
+  } = props
   const sideClasses =
     side === "right"
       ? "right-0 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right"
       : "left-0 data-open:animate-in data-open:slide-in-from-left data-closed:animate-out data-closed:slide-out-to-left"
 
   return (
-    <SheetPortal keepMounted={keepMounted}>
-      <SheetOverlay />
+    <SheetPortal keepMounted={keepMounted} container={container}>
+      <SheetOverlay
+        className={
+          // Contained: dim only the player, not the page. Phones fall back to
+          // the full-viewport drawer, where the video is too short to host it.
+          contained ? "absolute inset-0 max-sm:fixed" : undefined
+        }
+      />
       <DialogPrimitive.Popup
         data-slot="sheet-content"
         className={cn(
-          "fixed top-0 z-50 h-full w-full max-w-md border-l border-zinc-800 bg-zinc-950 shadow-2xl",
+          contained
+            ? "absolute inset-y-0 z-50 h-full w-full max-w-md border-l border-zinc-800 bg-zinc-950 shadow-2xl max-sm:fixed max-sm:max-w-none"
+            : "fixed top-0 z-50 h-full w-full max-w-md border-l border-zinc-800 bg-zinc-950 shadow-2xl",
           sideClasses,
           className
         )}
