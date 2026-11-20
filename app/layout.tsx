@@ -51,7 +51,7 @@ export default function RootLayout({
           <NavBar />
           <div className="flex-1">{children}</div>
         </TooltipProvider>
-        <Toaster position="bottom-center" richColors visibleToasts={3} />
+        <Toaster position="bottom-center" richColors visibleToasts={4} />
         <Analytics />
       </body>
     </html>

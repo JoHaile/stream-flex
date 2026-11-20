@@ -11,6 +11,8 @@ import {
   DollarSign,
   Landmark,
   Calendar,
+  Clock,
+  ClapperboardIcon,
 } from "lucide-react";
 import type {
   MovieDetails,
@@ -20,6 +22,7 @@ import type {
 import { getMovieEmbedUrl } from "@/utils/embed";
 import MediaPlayer from "@/components/shared/MediaPlayer";
 import MediaGallery from "@/components/shared/MediaGallery";
+import AboutSection from "@/components/shared/AboutSection";
 import {
   KeywordsSection,
   ProductionSection,
@@ -78,25 +81,34 @@ function formatNumber(value: number | null | undefined) {
   return value.toFixed(1);
 }
 
+/**
+ * Keeps the whole person (name + photo) instead of just the name, so the About
+ * block can show director/writer portraits in the same style as the cast.
+ */
 function getCrew(movie: MovieDetails) {
   const crew = movie.credits?.crew ?? [];
-  const directors = Array.from(
-    new Set(
-      crew
-        .filter((member) => member.job === "Director")
-        .map((member) => member.name),
-    ),
-  );
-  const writers = Array.from(
-    new Set(
-      crew
-        .filter((member) =>
-          ["Screenplay", "Writer", "Story"].includes(member.job),
-        )
-        .map((member) => member.name),
-    ),
-  );
-  return { directors, writers };
+  const pick = (jobs: string[]) => {
+    const seen = new Set<number>();
+
+    return crew
+      .filter((member) => jobs.includes(member.job))
+      .filter((member) => {
+        if (seen.has(member.id)) return false;
+        seen.add(member.id);
+        return true;
+      })
+      .slice(0, 4)
+      .map((member) => ({
+        id: member.id,
+        name: member.name,
+        profile_path: member.profile_path,
+      }));
+  };
+
+  return {
+    directors: pick(["Director"]),
+    writers: pick(["Screenplay", "Writer", "Story"]),
+  };
 }
 
 function getEmbedUrl(id: string) {
@@ -339,79 +351,70 @@ export default function MovieDetailClient({
         ) : null}
 
         {movie.overview ? (
-          <section className="mb-10 border-t border-zinc-800 pt-8">
-            <h2 className="mb-4 text-xl font-bold text-white">
-              About {movie.title}
-            </h2>
-            <p className="max-w-3xl text-sm leading-relaxed text-zinc-400">
-              {movie.overview}
-            </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                <TrendingUp className="mb-1 h-4 w-4 text-red-400" />
-                <p className="text-[11px] font-medium text-zinc-500">Popularity</p>
-                <p className="text-sm font-semibold text-white">{formatNumber(movie.popularity)}</p>
-              </div>
-              {budgetFormatted ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                  <DollarSign className="mb-1 h-4 w-4 text-green-400" />
-                  <p className="text-[11px] font-medium text-zinc-500">Budget</p>
-                  <p className="text-sm font-semibold text-white">{budgetFormatted}</p>
-                </div>
-              ) : null}
-              {revenueFormatted ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                  <Landmark className="mb-1 h-4 w-4 text-yellow-400" />
-                  <p className="text-[11px] font-medium text-zinc-500">Revenue</p>
-                  <p className="text-sm font-semibold text-white">{revenueFormatted}</p>
-                </div>
-              ) : null}
-              <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3">
-                <Calendar className="mb-1 h-4 w-4 text-blue-400" />
-                <p className="text-[11px] font-medium text-zinc-500">Release</p>
-                <p className="text-sm font-semibold text-white">{formatDate(movie.release_date)}</p>
-              </div>
-              {movie.genres.length ? (
-                <div className="rounded-lg bg-zinc-900/60 ring-1 ring-zinc-800 p-3 col-span-2 sm:col-span-1 lg:col-span-2">
-                  <p className="text-[11px] font-medium text-zinc-500 mb-1">Genres</p>
-                  <p className="text-xs leading-relaxed text-white/80">
-                    {movie.genres.map((g) => g.name).join(", ")}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-zinc-400">
-              {crew.directors.length ? (
-                <div>
-                  <span className="font-semibold text-zinc-300">Director: </span>
-                  {crew.directors.join(", ")}
-                </div>
-              ) : null}
-              {crew.writers.length ? (
-                <div>
-                  <span className="font-semibold text-zinc-300">Writer: </span>
-                  {crew.writers.join(", ")}
-                </div>
-              ) : null}
-              {movie.imdb_id ? (
-                <div>
-                  <a
-                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded bg-yellow-500/15 px-3 py-1 text-xs font-semibold text-yellow-400 hover:bg-yellow-500/25 transition ring-1 ring-yellow-500/30"
-                  >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M16.5 7.5v9H18v-9h-1.5zM12 7.5v9h1.5v-9H12zm-3 9V9.75L6 12.75V9H4.5v9H6l3-3.75V16.5H9v-6.75L12 12.75V9H9v7.5zM3 6v12h18V6H3z" />
-                    </svg>
-                    IMDb
-                  </a>
-                </div>
-              ) : null}
-            </div>
-          </section>
+          <AboutSection
+            title={movie.title}
+            overview={movie.overview}
+            tagline={movie.tagline}
+            imdbId={movie.imdb_id}
+            stats={[
+              {
+                label: "Popularity",
+                value: formatNumber(movie.popularity),
+                icon: TrendingUp,
+                iconClass: "text-red-400",
+              },
+              ...(budgetFormatted
+                ? [
+                    {
+                      label: "Budget",
+                      value: budgetFormatted,
+                      icon: DollarSign,
+                      iconClass: "text-emerald-400",
+                    },
+                  ]
+                : []),
+              ...(revenueFormatted
+                ? [
+                    {
+                      label: "Revenue",
+                      value: revenueFormatted,
+                      icon: Landmark,
+                      iconClass: "text-yellow-400",
+                    },
+                  ]
+                : []),
+              {
+                label: "Release",
+                value: formatDate(movie.release_date),
+                icon: Calendar,
+                iconClass: "text-sky-400",
+              },
+              ...(movie.runtime
+                ? [
+                    {
+                      label: "Runtime",
+                      value: formatRuntime(movie.runtime),
+                      icon: Clock,
+                      iconClass: "text-amber-400",
+                    },
+                  ]
+                : []),
+              ...(movie.genres.length
+                ? [
+                    {
+                      label: "Genres",
+                      value: movie.genres.map((genre) => genre.name).join(" · "),
+                      icon: ClapperboardIcon,
+                      iconClass: "text-violet-400",
+                    },
+                  ]
+                : []),
+            ]}
+            crewGroups={[
+              { label: "Director", people: crew.directors },
+              { label: "Writer", people: crew.writers },
+            ]}
+          />
         ) : null}
 
         <MediaGallery

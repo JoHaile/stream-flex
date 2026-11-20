@@ -33,9 +33,6 @@ type SeasonData = {
   episode_count: number;
 };
 
-/** Reused id so repeated lock taps replace the same toast instead of stacking. */
-const LOCK_TOAST_ID = "player-locked";
-
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -112,26 +109,31 @@ export default function MediaPlayer({
   const handleClose = () => {
     setIsFullscreen(false);
     setIsLocked(false);
-    toast.dismiss(LOCK_TOAST_ID);
+    toast.dismiss();
     onClose();
   };
 
+  // Yellow = warning (locked), green = success (unlocked). No shared id, so the
+  // toasts stack on top of each other the way sonner does by default.
   const toggleLock = () => {
-    setIsLocked((locked) => {
-      const next = !locked;
-      if (next) {
-        toast("Player locked", {
-          id: LOCK_TOAST_ID,
-          description:
-            "Taps outside the player no longer close it. Unlock to close it again.",
-          icon: <LockIcon className="size-4" />,
-          duration: 4000,
-        });
-      } else {
-        toast.dismiss(LOCK_TOAST_ID);
-      }
-      return next;
-    });
+    // The toast fires from the handler, never from inside the state updater:
+    // React double-invokes updaters (StrictMode, re-renders), which showed the
+    // same toast twice per click.
+    const next = !isLocked;
+    setIsLocked(next);
+
+    if (next) {
+      toast.warning("Player locked", {
+        description:
+          "Taps outside the player no longer close it. Unlock to close it again.",
+        icon: <LockIcon className="size-4" />,
+      });
+    } else {
+      toast.success("Player unlocked", {
+        description: "Taps outside the player close it again.",
+        icon: <LockOpenIcon className="size-4" />,
+      });
+    }
   };
 
   // Backdrop taps close the popup — unless the player is locked, in which case
@@ -139,11 +141,10 @@ export default function MediaPlayer({
   const handleBackdropClick = () => {
     if (isFullscreen) return;
     if (isLocked) {
-      toast("Player locked", {
-        id: LOCK_TOAST_ID,
+      toast.warning("Player is locked", {
         description: "Unlock the player first to close it.",
         icon: <LockIcon className="size-4" />,
-        duration: 3000,
+        duration: 2500,
       });
       return;
     }

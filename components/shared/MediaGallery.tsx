@@ -190,7 +190,7 @@ export default function MediaGallery({
               setLightboxIndex(null);
             }}
             aria-label="Close image"
-            className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-black/80"
+            className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-red-500"
           >
             <X className="h-5 w-5" />
           </button>

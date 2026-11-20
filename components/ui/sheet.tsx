@@ -107,7 +107,7 @@ function SheetContent({
             <DialogPrimitive.Title className="text-base font-semibold text-white">
               Seasons & Episodes
             </DialogPrimitive.Title>
-            <DialogPrimitive.Close className="flex items-center gap-1 rounded-full bg-zinc-800/80 px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur-sm transition hover:bg-zinc-700 hover:text-white">
+            <DialogPrimitive.Close className="flex items-center gap-1 rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-red-500">
               <XIcon className="h-3.5 w-3.5" />
               Close
             </DialogPrimitive.Close>

@@ -5,6 +5,7 @@ import {
   getAvailabilityOptions,
   getCatalogPage,
   getGenreOptions,
+  getFeedSection,
   getScopedSearch,
   getSortOptions,
   getYearOptions,
@@ -50,7 +51,15 @@ export default async function TVSeriesPage({ searchParams }: Props) {
         availability: availability || undefined,
       });
 
-  const featured = searchTerm ? undefined : data.results[0];
+  // The cover leads with what is actually trending right now (same source as
+  // the home page hero), not just the first row of the current catalog page.
+  const trending = searchTerm
+    ? undefined
+    : await getFeedSection({ mediaType: "tv", section: "trending" });
+  const featured = searchTerm
+    ? undefined
+    : (trending?.results.find((item) => item.backdrop_path) ??
+      data.results[0]);
   const featuredBackdrop = featured?.backdrop_path
     ? `https://image.tmdb.org/t/p/original${featured.backdrop_path}`
     : null;
