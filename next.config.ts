@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Self-contained server bundle: OpenNext/Workers deploys this instead of a
+  // Node server (also lets `opennextjs-cloudflare build --skipNextBuild` run
+  // after a plain `next build`).
+  output: "standalone",
   images: {
     // Vercel's Image Optimization API is unavailable on the Hobby plan, so every
     // <Image> would fail to load. Serve the source directly instead: TMDB's CDN
