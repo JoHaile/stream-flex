@@ -57,7 +57,11 @@ function originalArtwork(request: Request): Response | null {
     if (url.protocol !== "https:" || url.hostname !== "image.tmdb.org") {
       return null;
     }
-    return Response.redirect(url.href, 302);
+    const response = Response.redirect(url.href, 302);
+    // Never store the fallback: once the Images quota resets we want the
+    // optimizer to be tried again instead of serving this redirect forever.
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   } catch {
     return null;
   }
@@ -73,6 +77,8 @@ const worker = {
       return handler.fetch(request, env, ctx);
     }
 
+    // A transform failure (for example the Images quota error 9422) rejects
+    // rather than returning a response, so this is the quota path.
     let response: Response;
     try {
       response = await handler.fetch(request, env, ctx);
@@ -80,6 +86,13 @@ const worker = {
       const fallback = originalArtwork(request);
       if (fallback) return fallback;
       throw error;
+    }
+
+    // Upstream trouble (TMDB timeouts) also degrades to the original file;
+    // client errors such as a bad `url` or `w` are passed through untouched.
+    if (response.status >= 500) {
+      const fallback = originalArtwork(request);
+      if (fallback) return fallback;
     }
 
     // Leave error responses and already-cacheable (immutable) assets alone.
