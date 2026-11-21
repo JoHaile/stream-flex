@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  // Custom entry point: wraps the generated worker to add image cache headers
+  // and a fallback to the original artwork when the Images quota is exhausted.
+  "main": "./worker.ts",
   "name": "stream-flex",
   "compatibility_date": "2026-11-17",
   "compatibility_flags": [
@@ -19,6 +21,12 @@
   ],
   "images": {
     "binding": "IMAGES"
+  },
+  // Workers Cache stores responses that carry Cache-Control headers. The custom
+  // worker adds those headers to /_next/image responses, so optimized images are
+  // served from Cloudflare's edge instead of being re-transformed on every view.
+  "cache": {
+    "enabled": true
   },
   "observability": {
     "enabled": true

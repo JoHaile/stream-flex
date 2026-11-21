@@ -6,11 +6,17 @@ const nextConfig: NextConfig = {
   // after a plain `next build`).
   output: "standalone",
   images: {
-    // Vercel's Image Optimization API is unavailable on the Hobby plan, so every
-    // <Image> would fail to load. Serve the source directly instead: TMDB's CDN
-    // already returns a correctly sized asset because the size segment is baked
-    // into the path (/t/p/w1280/...), so the optimizer had almost nothing to add.
-    unoptimized: true,
+    // `@opennextjs/cloudflare` serves Next's /_next/image endpoint on top of the
+    // Cloudflare Images binding (see wrangler.jsonc), so resizing and AVIF/WebP
+    // conversion happen on Cloudflare instead of Vercel's metered optimizer.
+    // Keep the buckets few: each distinct (image, width) pair counts as one
+    // Cloudflare "unique transformation" (5,000/month on the free plan).
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 1080, 1920],
+    imageSizes: [64, 96, 128, 256, 384],
+    qualities: [75],
+    // Optimized files are page content, not downloads.
+    contentDispositionType: "inline",
     remotePatterns: [
       {
         protocol: "https",

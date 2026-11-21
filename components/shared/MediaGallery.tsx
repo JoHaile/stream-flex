@@ -214,7 +214,6 @@ export default function MediaGallery({
                   alt={`${title} image ${lightboxIndex! + 1}`}
                   width={1280}
                   height={720}
-                  priority
                   onLoad={() => setLoadedSrc(current.path)}
                   className={cn(
                     "h-auto w-auto max-h-[78vh] max-w-[88vw] rounded-xl bg-zinc-900 object-contain shadow-2xl ring-1 ring-zinc-700 transition-opacity duration-500",
